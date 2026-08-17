@@ -1,0 +1,19 @@
+{
+  "name": "novelka-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "esbuild adapters/node.ts --bundle --format=esm --platform=node --packages=external --outfile=dist-test/server.mjs --log-level=error && node dist-test/server.mjs",
+    "build:test": "esbuild src/routes/stripe-webhook.ts --bundle --format=esm --platform=node --packages=external --outfile=dist-test/stripe-webhook.mjs --log-level=error && esbuild src/routes/entitlement.ts --bundle --format=esm --platform=node --packages=external --outfile=dist-test/entitlement.mjs --log-level=error && esbuild src/test-entry.ts --bundle --format=esm --platform=node --packages=external --outfile=dist-test/test-entry.mjs --log-level=error && esbuild src/lib/env.ts --bundle --format=esm --platform=node --packages=external --outfile=dist-test/env.mjs --log-level=error && esbuild src/routes/rating.ts --bundle --format=esm --platform=node --packages=external --outfile=dist-test/rating.mjs --log-level=error",
+    "test:unit": "npm run build:test && node test/webhook.test.mjs && node test/entitlement.test.mjs && node test/handler.test.mjs && node test/gdpr.test.mjs && node test/rating.test.mjs && node test/admin-auth.test.mjs && node test/admin-api.test.mjs && node test/template-persistence.test.mjs && node test/idempotency.test.mjs && node test/signed-grants.test.mjs",
+    "test:webhook": "npm run build:test && node test/webhook.test.mjs",
+    "test:rls": "db/test/run-rls-tests.sh"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "stripe": "^17.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
