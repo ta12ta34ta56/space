@@ -6,9 +6,12 @@
  * one instance the app uses. Opening a saved project calls `store.load(doc)`,
  * which replaces the Document and clears the undo history.
  *
- * The placeholder initial document is an empty book (zero pages, no title,
- * 6×9 white paperback). It is replaced by `load` before anything is edited, or
- * by the New Book flow in Unit 10.
+ * The placeholder initial document is a blank 24-page book (KDP's minimum
+ * interior, 6×9 white paperback, no title). Unit 06 gave the shell a page
+ * indicator and guide overlays that need real recto and verso pages to stand
+ * on, so the placeholder holds the smallest legal book instead of zero pages.
+ * It is replaced by `load` before anything is edited, or by the New Book flow
+ * in Unit 10.
  */
 
 import { nanoid } from 'nanoid';
@@ -21,7 +24,7 @@ function initialDocument(): Document {
     trimId: '6x9',
     paper: 'bw-white',
     binding: 'paperback',
-    pageCount: 0,
+    pageCount: 24,
     now: Date.now,
     id: () => nanoid(),
   });

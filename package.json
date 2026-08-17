@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "oxlint --disable-nested-config --deny-warnings",
-    "test": "npm run test:units && npm run test:document && npm run test:commands && npm run test:doc-store && npm run test:trims && npm run test:margins && npm run test:cover && npm run test:migrate && npm run test:storage && npm run test:autosave && npm run test:resolution && npm run test:fabric-boundary && npm run test:render-page && npm run test:thumbnail",
+    "test": "npm run test:units && npm run test:document && npm run test:commands && npm run test:doc-store && npm run test:trims && npm run test:margins && npm run test:cover && npm run test:migrate && npm run test:storage && npm run test:autosave && npm run test:resolution && npm run test:fabric-boundary && npm run test:render-page && npm run test:thumbnail && npm run test:guides && npm run test:ui-store && npm run test:overlay && npm run test:no-dead-controls",
     "test:units": "esbuild src/model/units.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/units.built.mjs --log-level=error && node src/model/units.test.mjs",
     "test:document": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && node src/model/document.test.mjs",
     "test:commands": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && node src/model/commands.test.mjs",
@@ -23,6 +23,10 @@
     "test:fabric-boundary": "node src/render/canvas/fabric-boundary.test.mjs",
     "test:render-page": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && esbuild src/render/canvas/render-page.ts --bundle --format=esm --platform=node --packages=external --outfile=src/render/canvas/render-page.built.mjs --log-level=error && node src/render/canvas/render-page.test.mjs",
     "test:thumbnail": "esbuild src/render/thumbnail.ts --bundle --format=esm --platform=node --packages=external --outfile=src/render/thumbnail.built.mjs --log-level=error && node src/render/thumbnail.test.mjs",
+    "test:guides": "esbuild src/print/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/print/print.built.mjs --log-level=error && node src/print/guides.test.mjs",
+    "test:ui-store": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && esbuild src/print/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/print/print.built.mjs --log-level=error && esbuild src/state/doc-store.ts --bundle --format=esm --platform=node --packages=external --outfile=src/state/doc-store.built.mjs --log-level=error && esbuild src/state/ui-store.ts --bundle --format=esm --platform=node --packages=external --outfile=src/state/ui-store.built.mjs --log-level=error && node src/state/ui-store.test.mjs",
+    "test:overlay": "esbuild src/ui/canvas/GuideOverlay.tsx --bundle --jsx=automatic --format=esm --platform=node --packages=external --outfile=src/ui/canvas/GuideOverlay.built.mjs --log-level=error && node src/ui/canvas/overlay.test.mjs",
+    "test:no-dead-controls": "esbuild src/ui/app/AppShell.tsx --bundle --jsx=automatic --format=esm --platform=node --packages=external --loader:.css=empty --outfile=src/ui/app/AppShell.built.mjs --log-level=error && node src/ui/app/no-dead-controls.test.mjs",
     "check": "npm run lint && tsc -b && npm run test && npm run build"
   },
   "dependencies": {
