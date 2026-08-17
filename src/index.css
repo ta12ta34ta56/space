@@ -1,0 +1,44 @@
+/**
+ * Colour tokens — ui-context.md §2. Nothing else lives in this file yet.
+ * No raw hex may appear anywhere else in the codebase.
+ */
+
+:root {
+  /* Surfaces */
+  --workspace: #4a4a4c;
+  --workspace-edge: #2a2b2d;
+  --surface: #191a1c;
+  --surface-raised: #212325;
+  --surface-sunken: #0c0d0e;
+
+  /* Lines */
+  --line: #303336;
+  --line-strong: #44484c;
+
+  /* Text */
+  --text: #eceae6;
+  --text-dim: #9b9791;
+  --text-mute: #6a6762;
+
+  /* Accent */
+  --accent: #c2410c;
+  --accent-hover: #ea580c;
+  --accent-soft: rgba(194, 65, 12, 0.16);
+
+  /* Status */
+  --good: #4d7c4a;
+  --warn: #a16207;
+  --bad: #b4413c;
+
+  /* Paper */
+  --paper: #ffffff;
+  --paper-edge: rgba(0, 0, 0, 0.45);
+
+  /* Print guides — instrument markings, fixed meanings, never themed */
+  --guide-bleed: #dc2626;
+  --guide-trim: #111827;
+  --guide-safe: #2563eb;
+  --guide-gutter: #7c3aed;
+  --guide-spine: #059669;
+  --guide-barcode: #d97706;
+}
