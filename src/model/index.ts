@@ -55,8 +55,10 @@ export {
   DocumentInvariantError,
   assertValidDocument,
   createDocument,
-  migrate,
 } from './document';
 export type { CreateDocumentInput } from './document';
+
+export { MIGRATIONS, migrate } from './migrate';
+export type { MigrationStep } from './migrate';
 
 export { DocumentParseError, MAX_TITLE_LENGTH, parseDocument, readSchemaVersion } from './parse';

@@ -1,16 +1,23 @@
 /**
- * Creating, validating and migrating a Document.
+ * Creating and validating a Document.
  *
  * Everything here is pure. `createDocument` takes its clock and its id source
  * as arguments and calls nothing else, so the same inputs always produce a
  * byte-identical document (code-standards.md; architecture.md invariant 3).
+ *
+ * Migration — the schemaVersion upgrade chain — lives in `migrate.ts`. The
+ * version constant stays here because `createDocument` is the writer that
+ * stamps it, while `migrate` is the reader that upgrades toward it.
  */
 
-import { DocumentParseError, parseDocument, readSchemaVersion } from './parse';
 import type { Binding, Document, Element, Frame, PaperStock, Page, TrimId } from './types';
 
-/** The schema version this build writes. Bumped with a migration in the same commit. */
-export const CURRENT_SCHEMA_VERSION = 1;
+/**
+ * The schema version this build writes. Bumped with a migration in the same
+ * commit. Version 2 exists solely to exercise the migration chain; it is a
+ * deliberate no-op over version 1 (spec 04 §3).
+ */
+export const CURRENT_SCHEMA_VERSION = 2;
 
 /** Thrown when a document breaks a model invariant. */
 export class DocumentInvariantError extends Error {
@@ -188,51 +195,4 @@ export function assertValidDocument(doc: Document): void {
   }
 }
 
-/* ------------------------------------------------------------ migration -- */
 
-/**
- * One version step. The chain exists from day one so that adding version 2 is
- * mechanical: write `v1 -> v2`, append it here, bump `CURRENT_SCHEMA_VERSION`,
- * and ship the test in the same commit.
- */
-type MigrationStep = {
-  readonly from: number;
-  readonly to: number;
-  readonly up: (raw: Record<string, unknown>) => Record<string, unknown>;
-};
-
-/** Version 1 is the base case, so the chain is empty until version 2 exists. */
-const MIGRATIONS: readonly MigrationStep[] = [];
-
-/**
- * Validates and upgrades unknown input into a current-version Document.
- *
- * Throws `DocumentParseError` when the input is not shaped like a document, and
- * `DocumentInvariantError` when a well-shaped document breaks an invariant. It
- * never returns a broken document.
- */
-export function migrate(raw: unknown): Document {
-  let version = readSchemaVersion(raw);
-  if (version > CURRENT_SCHEMA_VERSION) {
-    throw new DocumentParseError(
-      `document.schemaVersion: this book was saved by a newer version of Novelka (schema ${version}, this build reads ${CURRENT_SCHEMA_VERSION}). Update Novelka to open it.`,
-    );
-  }
-
-  // `readSchemaVersion` has already proved this is an object.
-  let current = raw as Record<string, unknown>;
-  while (version < CURRENT_SCHEMA_VERSION) {
-    const step = MIGRATIONS.find((candidate) => candidate.from === version);
-    if (step === undefined) {
-      throw new DocumentParseError(
-        `document.schemaVersion: no migration exists from schema ${version} to ${CURRENT_SCHEMA_VERSION}.`,
-      );
-    }
-    current = step.up(current);
-    version = step.to;
-  }
-
-  const document = parseDocument(current);
-  assertValidDocument(document);
-  return document;
-}

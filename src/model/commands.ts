@@ -8,7 +8,7 @@
  *
  * Rules this file obeys, and every future change to it must keep obeying:
  *
- *  - **Pure.** No `Date.now()`, no `Math.random()`, no `nanoid()`, no I/O, no
+ *  - **Pure.** No clock reads, no `Math.random()`, no `nanoid()`, no I/O, no
  *    logging. New ids and timestamps arrive inside the command.
  *  - **Immutable.** `doc` and everything reachable from it is never mutated.
  *  - **Structurally sharing.** A page or element that did not change is the

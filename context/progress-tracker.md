@@ -3,15 +3,17 @@
 > Update this file after every meaningful implementation change.
 > It is how the next session recovers full context in one prompt.
 
-**Last updated:** 17 August 2026 — Unit 03 complete
+**Last updated:** 17 August 2026 — Unit 04 complete
 
 ---
 
 ## Current Phase
 
-**Phase 1 — Foundation.** Units 01, 02 and 03 are complete. The Document exists, it is
-changeable in exactly one way (dispatch a Command), and the numbers it is derived against
-— trims, papers, margins, safe area, cover geometry — are locked and tested.
+**Phase 1 — Foundation.** Units 01, 02, 03 and 04 are complete. The Document exists, it is
+changeable in exactly one way (dispatch a Command), the KDP numbers it is derived against
+are locked and tested, and work now survives a reload: IndexedDB save/load, debounced
+autosave, the `schemaVersion` migration chain, and `StorageFullError` with the "download
+my work" escape hatch.
 
 The previous build now lives in `legacy/novelka/` and is the **reference implementation** —
 the source of ported logic. It is not the thing being extended, it is not linted, and it
@@ -21,13 +23,121 @@ is not built.
 
 ## Current Goal
 
-**Unit 04 — Storage and migrations.** IndexedDB save/load, debounced autosave,
-`schemaVersion` migrations, `StorageFullError` with "download my work". Its spec has not
-been written yet; see the open question below.
+**Unit 05 — Canvas renderer.** `render/canvas/` becomes the only place Fabric is imported.
+Document → pixels, one way, DPR-aware, 2× supersampled, capped at 4096px. This is the
+unit that proves the architecture (spec `05-` once written; the build-plan summary is in
+`00-build-plan.md`).
 
 ---
 
 ## Completed
+
+### Unit 04 — Storage and migrations *(17 August 2026)*
+
+Built against `context/specs/04-storage-and-migrations.md`. Nothing renders: no project
+list UI, no recovery prompt, no "download my work" button (those are later units). This
+unit exposes the functions those surfaces will call, and proves a document survives
+save → reload → identical and a v1 document opens under a v2 schema.
+
+**`src/model/migrate.ts`** — the migration chain moved out of `document.ts` and given its
+first real step. `CURRENT_SCHEMA_VERSION` is now **2**; the **v1→v2 step is a deliberate
+no-op** that changes only `schemaVersion`, so the mechanism is exercised by a real
+migration before anyone depends on it (v2 is intentionally identical to v1, recorded
+here as the spec asks). A future `schemaVersion` is refused with "saved by a newer
+version of Novelka" naming the version; a **missing** `schemaVersion` is refused with its
+own message, never assumed to be v1 (`readSchemaVersion` now says "is missing").
+Migration runs before `assertValidDocument`, and `migrate` is pure and non-mutating.
+
+**`src/state/storage.ts`** — IndexedDB, PORTED from `legacy/novelka/src/services/storage.ts`
+with exactly the spec's changes: the payload is a `Document` (not `ProjectFile`); the
+legacy migration (`migrateLegacy`, `LEGACY_DB_NAME`, `DB_MIGRATED_FLAG`, the old
+localStorage keys) is deleted; errors are never swallowed (`list`/`get`/`save`/`remove`
+reject — the only fallback that survives is the localStorage *index cache*, which is
+advisory by design); and `Date.now()` is injected (`createStorage({ now, id })` plus a
+default `storage` singleton wired to the real clock). The `QuotaExceededError →
+StorageFullError` mapping on both `onerror` and `onabort` is kept verbatim. Database
+`novelka`, version 1, stores `projects` and `meta`; a record is
+`{ id, schemaVersion, document, updatedAt }` (thumbnails arrive in Unit 05). Autosave
+slot = `meta` store key `__autosave__`. `duplicate` re-mints every id (document, pages,
+cover, elements) from the injected id source, and the record is keyed by the new
+*document* id. `recoveryCandidate(autosave, projects)` is the pure fact for the later
+recovery prompt. `downloadJSON` / `serializeProjectFile` / `readProjectFile` round-trip a
+Document through the exported `.novelka.json` envelope.
+
+**`src/state/autosave.ts`** — `createAutosave({ store, storage, delayMs, now })`, the
+debounce timer's only home (the doc store is still timer-free). Subscribes to the doc
+store; a change debounces **1500 ms** by default (configurable via `delayMs`), then saves
+the *latest* Document. Coalescing: a save in flight never queues a second — the follow-up
+picks up the latest Document, so writes to the same slot never overlap. Any failure
+(including `StorageFullError`) sets `status: 'error'` and stops: no retry loop, no silent
+success. Exposes `getStatus()` (`idle | pending | saving | saved | error`) and
+`getLastSavedAt()`. Writes to the autosave slot, never over a named project. `stop()`
+unsubscribes and flushes any save still due, so closing does not lose the last 1.5 s.
+
+**`src/state/store.ts` + `doc-store.ts` `load`** — settles open question 4. `createDocStore`
+stays a factory; `store.ts` exports **one module-level `store`** (no provider, no context —
+the app edits one book at a time). `store.getState().load(doc)` runs `migrate` then
+`assertValidDocument`, throws before touching the store if either fails (exactly like
+`dispatch`), then replaces the Document and **clears `past` and `future`**. It is a
+method, deliberately not a Command: `apply` stays pure and its union stays closed, and
+undoing past the moment a book was opened is meaningless. The placeholder initial
+document is an empty book (0 pages, 6×9, white, paperback), replaced by `load` before
+anything is edited.
+
+**Tests** — `migrate.test.mjs`, `storage.test.mjs`, `autosave.test.mjs`, run by plain Node
+over an esbuild bundle and chained into `npm run test`. **fake-indexeddb** is the dev
+dependency (chosen over a hand-written IDB double because the quota/read-failure tests
+need real `onerror`/`onabort` dispatch to prove the `StorageFullError` mapping). Autosave
+uses a hand-written in-memory storage double, which the spec explicitly permits.
+
+- `migrate`: the chain holds exactly one no-op v1→v2 step; v1 → v2; v2 unchanged;
+  version 99 refused naming 99; missing version refused; a doc that migrates but fails
+  `assertValidDocument` throws and stores nothing; `store.load` clears history and undo
+  becomes a no-op.
+- `storage`: the headline save→read round-trip of a Document with one element of every
+  kind; list shows name + page count; remove deletes and rename preserves every element;
+  duplicate produces new ids and mutating the copy never touches the original; a
+  QuotaExceededError (simulated by a failing `put` request) surfaces as
+  `StorageFullError`; a read failure rejects rather than returning `[]`; the autosave
+  slot writes/reads/clears; `recoveryCandidate` returns only when newer than every
+  project; `serializeProjectFile` → `readProjectFile` round-trips identically and rejects
+  non-JSON / non-document files.
+- `autosave`: three rapid changes produce one write carrying the latest Document; `stop()`
+  flushes; a save in flight never overlaps a second (max one active write); a
+  `StorageFullError` sets `status: 'error'` with exactly one attempt and no retry loop.
+
+**Verification, all run and all green:** `npm run check` (lint 0 errors 0 warnings ·
+`tsc -b` clean · 10/10 suites · build passes) · `grep -rn "minipdf" src/` empty ·
+`grep -rn "catch {}\|catch { }\|catch { return \[\]" src/state/` empty (no swallowed
+errors) · `grep -rn "setTimeout\|setInterval" src/state/doc-store.ts` empty (the store is
+still timer-free) · `grep -rn "Date.now()" src/model src/print` empty · no `any`, no
+`@ts-ignore`, no non-null `!` (the only `@ts-expect-error` lines are Unit 02's four
+type-test assertions).
+
+**Invariants checked explicitly** (`architecture.md` §10). Applicable and held: 1 (the
+Document is still plain serialisable data; the storage record adds no renderer state), 2
+(`load` is the one deliberate non-Command writer, added by spec 04 §4; data still flows
+Document → storage), 3 (`migrate` is pure and non-mutating, proved in tests), 14 (zero
+`any`, zero `!`), 15 (`state/` imports only `model/`, `zustand` and `nanoid`), 16 (no
+backend; IndexedDB is on the user's machine, per §8). Not yet applicable, nothing here
+contradicts them: 4–13, 17.
+
+Judgement calls recorded rather than left silent:
+
+- **`stop()` returns a Promise**, not the spec sketch's `void` — a flush is an IndexedDB
+  write, so "stop flushes" is inherently async and the test awaits it.
+- **`downloadJSON`'s DOM click is not exercisable in Node.** The test round-trips through
+  `serializeProjectFile`, the exact payload `downloadJSON` writes, so the file format is
+  what is pinned. Noted here rather than hidden.
+- **`autosave` is not wired at startup.** No UI exists to call `createAutosave` yet; the
+  spec gives the factory and the wiring lands with the app bootstrap in Unit 05+.
+- **`save` does not itself clear the autosave slot.** The spec puts `clearAutosave()`
+  after an explicit save or an accepted recovery — a caller decision, not a side effect of
+  `save`.
+- **The initial singleton document is a 0-page blank book.** The store must exist before
+  any UI; `load` replaces it before editing, and the New Book flow (Unit 10) will too.
+- **The stored record has no `thumbnail` yet.** Architecture §8 lists one, but thumbnails
+  need the renderer (Unit 05) — it is added there, not now.
 
 ### Unit 03 — KDP print truth *(17 August 2026)*
 
@@ -335,17 +445,16 @@ the new standards.
 
 ## In Progress
 
-- Nothing. Unit 03 is finished and verified; Unit 04 has not started.
+- Nothing. Unit 04 is finished and verified; Unit 05 has not started.
 
 ---
 
 ## Next Up
 
-**Unit 04 — Storage and migrations.** IndexedDB save/load, debounced autosave,
-`schemaVersion` migrations, `StorageFullError` with a "download my work" escape. Done
-when a document survives save → reload → identical, and a v1 document opens under a v2
-schema. `state/storage.ts` will also settle open question 4 (how a loaded project becomes
-the live document).
+**Unit 05 — Canvas renderer.** `render/canvas/` — the only place Fabric is imported.
+Document → pixels, one way, DPR-aware, 2× supersampled, capped at 4096 px (ported
+rendering math). Done when destroying and recreating the canvas every frame changes
+nothing but speed. This is the unit that proves the architecture.
 
 The full ordered plan is `context/specs/00-build-plan.md` — 23 units in five phases.
 Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable book.
@@ -354,24 +463,22 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
 
 ## Open Questions
 
-1. **Unit 04 has no spec file yet.** `context/specs/` holds `00-build-plan.md` and
-   `01-` / `02-` / `03-` unit specs. The build plan's summary of Unit 04 — IndexedDB
-   save/load, debounced autosave, migrations, `StorageFullError` with "download my work"
-   — is not enough to implement against on its own. Owner to write the spec, or to say
-   the agent should draft it for review first.
+1. ~~**Unit 04 has no spec file yet.**~~ **Resolved.** `context/specs/04-storage-and-migrations.md`
+   was written and Unit 04 built against it.
 2. **`PuzzleData` / `PuzzleStyle` are `Record<string, never>` until Unit 12.** The parser
    therefore *rejects* any puzzle carrying real data, with a message pointing at Unit 12.
    This is correct for now, but it means no document written between here and Unit 12 can
    contain a real puzzle. Flagging it so it is a known constraint and not a surprise.
+   (Consequence now visible in Unit 04: the storage round-trip test uses puzzles with
+   empty `data`/`style`, because that is all the model can represent until Unit 12.)
 3. **Duplicated element ids are derived, not generated** (Unit 02). `page/duplicate`
    carries `newId` for the page; its elements get `` `${newId}-${oldId}` `` because ids must
    be unique document-wide and `apply` may not call `nanoid`. Deterministic and pure, but
    it is a shape the spec did not state. If the owner wants generated ids there instead,
    the command grows an `elementIds` field. Low cost either way.
-4. **Nothing reads the store yet.** `createDocStore` is a factory, not an app-wide
-   singleton, because no UI exists to consume one and Unit 04 (storage) will decide how a
-   loaded project becomes the live document. Whether the app ends up with a module-level
-   store or a provider is a Unit 04 question, deliberately not answered here.
+4. ~~**Nothing reads the store yet.**~~ **Resolved by Unit 04.** `state/store.ts` exports
+   one module-level `store` (no provider, no context) and `doc-store` gained
+   `load(doc)`, which migrates, validates, replaces the Document and clears history.
 5. **`safeAreaFor` validates the page count before computing** (Unit 03 judgement call,
    recorded in the Unit 03 section). The spec's port changes were inches-only and
    TrimId/PaperStock; validation was added so the paper parameter means something and an
@@ -381,6 +488,12 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
    provenance note states). It is our locked contract; if the owner ever downloads a real
    KDP cover template and a value disagrees, the table is corrected and the test follows
    the table. Nothing to do now — flagged so the provenance is never mistaken for gospel.
+7. **Autosave is a factory with no caller yet.** Nothing calls `createAutosave` until a
+   bootstrap exists (Unit 05+). The spec delivered the factory and the store singleton;
+   the wiring — subscribe once at startup, `stop()` on close, read the recovery candidate
+   on boot — lands with the app shell. Flagged so it is not mistaken for an omission.
+8. **The stored record has no `thumbnail`.** Architecture §8 lists `thumbnail` in the
+   record; it is deferred to Unit 05 (needs the renderer) and will be added there.
 
 Everything else was resolved on 17 August 2026 (D24). The owner decided History (keep),
 PDF import (cut) and fonts (keep); the remaining calls were delegated to the agent and are
