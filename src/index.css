@@ -1,5 +1,5 @@
 /**
- * Colour tokens — ui-context.md §2. Nothing else lives in this file yet.
+ * Design tokens (ui-context.md §2–§5) and the base reset.
  * No raw hex may appear anywhere else in the codebase.
  */
 
@@ -41,4 +41,57 @@
   --guide-gutter: #7c3aed;
   --guide-spine: #059669;
   --guide-barcode: #d97706;
+
+  /* Type — ui-context §3. A grotesque with character; the §1 ban list holds. */
+  --font-ui: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type scale — size / line height pairs */
+  --fs-micro: 11px;
+  --lh-micro: 16px;
+  --fs-small: 12px;
+  --lh-small: 18px;
+  --fs-body: 13px;
+  --lh-body: 20px;
+  --fs-lead: 15px;
+  --lh-lead: 22px;
+  --fs-title: 20px;
+  --lh-title: 28px;
+  --fs-display: 28px;
+  --lh-display: 34px;
+
+  /* Spacing — 4px base */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* Radius */
+  --r-sm: 3px;
+  --r-md: 5px;
+}
+
+/* Base reset — enough for a full-viewport app shell, nothing decorative. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  background: var(--surface);
 }

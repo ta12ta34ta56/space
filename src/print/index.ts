@@ -3,8 +3,9 @@
  *
  * Pure math, no rendering: the six trims and the one paper vocabulary
  * (`trims.ts`), the ported margins and safe area (`margins.ts`), the rebuilt
- * cover geometry (`cover.ts`), and the locked cover reference table
- * (`reference-table.ts`). This layer imports only `model/`.
+ * cover geometry (`cover.ts`), the locked cover reference table
+ * (`reference-table.ts`), and the guide rectangles the overlays draw
+ * (`guides.ts`, Unit 06). This layer imports only `model/`.
  */
 
 export {
@@ -47,3 +48,6 @@ export type { BarcodeKeepOutIn, CoverSpec } from './cover';
 
 export { COVER_REFERENCE_TABLE, COVER_REFERENCE_TOLERANCE_IN } from './reference-table';
 export type { CoverReferenceRow } from './reference-table';
+
+export { GUIDE_KINDS, GUIDE_SURFACES, GuideError, guidesFor } from './guides';
+export type { Guide, GuideKind, GuideOptions, GuideSurface } from './guides';

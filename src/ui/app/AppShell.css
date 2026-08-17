@@ -1,91 +1,475 @@
-.novelka-shell {
+/**
+ * The editor shell and the kit primitives (spec 06, ui-context.md §5, §7).
+ * Tokens only: no raw hex, no off-scale spacing, no radius beyond --r-md,
+ * no drop shadows except under the paper. Motion is 120ms state / 180ms
+ * panels, and prefers-reduced-motion turns it all off.
+ */
+
+/* ------------------------------------------------------------- layout -- */
+
+.shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
   overflow: hidden;
-  background-color: var(--surface, #191a1c);
-  color: var(--text, #eceae6);
+  background: var(--surface);
+  color: var(--text);
 }
 
-.novelka-header {
+.shell-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------ top bar -- */
+
+.shell-top {
+  height: 48px;
+  flex: none;
   display: flex;
   align-items: center;
-  height: 48px;
-  padding: 0 var(--s4, 16px);
-  background-color: var(--surface, #191a1c);
-  border-bottom: 1px solid var(--line, #303336);
-  flex-shrink: 0;
+  gap: var(--s3);
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
-.novelka-brand {
-  font-size: var(--fs-lead, 15px);
+.shell-brand {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--text, #eceae6);
 }
 
-.novelka-workspace {
-  flex: 1;
-  overflow: auto;
+.shell-title {
+  width: 240px;
+}
+
+.shell-meta {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  justifyContent: center;
-  background-color: var(--workspace, #4a4a4c);
-  padding: var(--s6, 32px);
+  gap: var(--s2);
+  color: var(--text-dim);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
-.novelka-canvas-container {
-  display: inline-flex;
-  align-items: center;
-  justifyContent: center;
+.shell-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-.novelka-footer {
+.shell-meta-sep {
+  color: var(--text-mute);
+}
+
+/* ---------------------------------------------------------- left rail -- */
+
+.shell-rail {
+  width: 56px;
+  flex: none;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justifyContent: center;
-  height: 36px;
-  padding: 0 var(--s4, 16px);
-  background-color: var(--surface, #191a1c);
-  border-top: 1px solid var(--line, #303336);
-  flex-shrink: 0;
+  gap: var(--s1);
+  padding: var(--s2) 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
 }
 
-.novelka-zoom-controls {
-  display: inline-flex;
+.rail-btn {
+  width: 48px;
+  padding: var(--s2) 0 var(--s1);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--s1, 4px);
-}
-
-.novelka-btn {
-  display: inline-flex;
-  align-items: center;
-  justifyContent: center;
-  height: 24px;
-  min-width: 24px;
-  padding: 0 var(--s2, 8px);
-  background-color: var(--surface-raised, #212325);
-  border: 1px solid var(--line, #303336);
-  border-radius: var(--r-sm, 3px);
-  color: var(--text, #eceae6);
+  gap: var(--s1);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--text-mute);
   font-family: inherit;
-  font-size: var(--fs-small, 12px);
+  font-size: var(--fs-micro);
+  line-height: 1;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  user-select: none;
+  transition: background 120ms ease-out, color 120ms ease-out;
 }
 
-.novelka-btn:hover {
-  background-color: var(--surface-sunken, #0c0d0e);
-  border-color: var(--line-strong, #44484c);
+.rail-btn:hover {
+  background: var(--surface-raised);
+  color: var(--text);
 }
 
-.novelka-btn:focus-visible {
-  outline: 2px solid var(--accent, #c2410c);
+.rail-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.rail-btn:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-.novelka-zoom-readout {
+.rail-btn-label {
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------- workspace -- */
+
+.shell-workspace {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--workspace);
+  padding: var(--s6);
+}
+
+/* The paper and its guide overlay share one positioned box. The paper's
+   white ground and its shadow are painted by CanvasHost (Unit 05). */
+.page-stage {
+  position: relative;
+  flex: none;
+}
+
+.shell-empty {
+  color: var(--text-dim);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* --------------------------------------------------------- right dock -- */
+
+/* Reserved space only in Unit 06; the Pages tab arrives in Unit 07 (D17). */
+.shell-dock {
+  width: 280px;
+  flex: none;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+}
+
+/* ---------------------------------------------------------- bottom bar -- */
+
+.shell-bottom {
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s3);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.bar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.bar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+  flex: none;
+}
+
+.bar-spacer {
+  flex: 1;
+}
+
+.bar-zoom-readout {
   min-width: 52px;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.bar-page {
+  height: 24px;
+  padding: 0 var(--s2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+
+.bar-page:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.bar-page:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bar-jump {
+  width: 56px;
+  height: 24px;
+  padding: 0 var(--s1);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------ guide overlay -- */
+
+.guide-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.guide {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* Fixed instrument markings — never themed (ui-context §2). */
+.guide-bleed {
+  border: 1px dashed var(--guide-bleed);
+}
+
+.guide-trim {
+  border: 1px solid var(--guide-trim);
+}
+
+.guide-safe {
+  border: 1px dashed var(--guide-safe);
+}
+
+.guide-gutter {
+  border: 1px dashed var(--guide-gutter);
+}
+
+.guide-spine {
+  border: 1px dashed var(--guide-spine);
+}
+
+.guide-barcode {
+  border: 1px dashed var(--guide-barcode);
+}
+
+/* ------------------------------------------------------- kit: Button -- */
+
+.kit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  height: 24px;
+  min-width: 24px;
+  padding: 0 var(--s2);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+
+.kit-btn:hover {
+  background: var(--surface-sunken);
+  border-color: var(--line-strong);
+}
+
+.kit-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kit-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+
+.kit-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* ------------------------------------------------- kit: Field, Select -- */
+
+.kit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.kit-field-label {
+  font-size: var(--fs-micro);
+  line-height: var(--lh-micro);
+  color: var(--text-dim);
+}
+
+.kit-field-input,
+.kit-select {
+  height: 28px;
+  padding: 0 var(--s2);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  transition: border-color 120ms ease-out;
+}
+
+.kit-field-input:hover,
+.kit-select:hover {
+  border-color: var(--line-strong);
+}
+
+.kit-field-input:focus-visible,
+.kit-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kit-field-input::placeholder {
+  color: var(--text-mute);
+}
+
+/* ------------------------------------------------------- kit: Toggle -- */
+
+.kit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 24px;
+  padding: 0 var(--s1);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+
+.kit-toggle:hover {
+  color: var(--text);
+}
+
+.kit-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The one permitted pill: a true toggle switch (ui-context §5). */
+.kit-toggle-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+
+.kit-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--text-dim);
+  transition: transform 120ms ease-out, background 120ms ease-out;
+}
+
+.kit-toggle[aria-checked='true'] .kit-toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.kit-toggle[aria-checked='true'] .kit-toggle-thumb {
+  transform: translateX(12px);
+  background: var(--paper);
+}
+
+.kit-toggle-label {
+  font-weight: 500;
+}
+
+/* ------------------------------------------------------ kit: Tooltip -- */
+
+.kit-tipwrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.kit-tip {
+  position: absolute;
+  z-index: 40;
+  visibility: hidden;
+  opacity: 0;
+  width: max-content;
+  max-width: 260px;
+  padding: var(--s2) var(--s3);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: 400;
+  text-align: left;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.kit-tipwrap-top .kit-tip {
+  bottom: calc(100% + var(--s1));
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.kit-tipwrap-right .kit-tip {
+  left: calc(100% + var(--s1));
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.kit-tipwrap:hover .kit-tip,
+.kit-tipwrap:focus-within .kit-tip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* --------------------------------------------------- reduced motion -- */
+
+@media (prefers-reduced-motion: reduce) {
+  .shell *,
+  .kit-tip {
+    transition-duration: 0ms;
+  }
 }

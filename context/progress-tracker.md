@@ -3,17 +3,17 @@
 > Update this file after every meaningful implementation change.
 > It is how the next session recovers full context in one prompt.
 
-**Last updated:** 17 August 2026 — Unit 05 complete
+**Last updated:** 17 August 2026 — Unit 06 complete
 
 ---
 
 ## Current Phase
 
-**Phase 1 — Foundation.** Units 01, 02, 03, 04 and 05 are complete. The Document exists,
+**Phase B — Making it visible.** Units 01 through 06 are complete. The Document exists,
 it is changeable in exactly one way (dispatch a Command), the KDP numbers it is derived
-against are locked and tested, persistence and autosave are proven, and the canvas
-renderer proves the one-way Document → pixels architecture. Destroying and recreating the
-canvas every frame produces byte-identical output.
+against are locked and tested, persistence and autosave are proven, the canvas renderer
+proves the one-way Document → pixels architecture, and the editor shell now frames the
+page with the six print guide overlays drawn as DOM above the canvas.
 
 The previous build now lives in `legacy/novelka/` and is the **reference implementation** —
 the source of ported logic. It is not the thing being extended, it is not linted, and it
@@ -23,13 +23,95 @@ is not built.
 
 ## Current Goal
 
-**Unit 06 — Editor shell and guides.** App shell, top bar, left rail, bottom bar (zoom,
-fit, "9 of 10" page indicator with jump). Guide overlays as DOM above the canvas: bleed,
-trim, safe area, gutter, spine, barcode. Dark UI, grey paper surround (D23).
+**Unit 07 — Right dock: Pages (ported design, D17).** The Pages tab reproduced exactly:
+thumbnails, subtle insert gutters, warning dot, selected state, drag-reorder with
+drop-line, duplicate, delete. IntersectionObserver + rAF-throttled live thumbnails.
+Reads the Document, dispatches Commands. Done when it is indistinguishable from the
+original, except it cannot desync.
 
 ---
 
 ## Completed
+
+### Unit 06 — Editor shell and print guides *(17 August 2026)*
+
+Built against `context/specs/06-shell-and-guides.md`. The frame the editor lives in, and
+the guides that make Novelka worth using. Still no editing: no selection, no dragging,
+no panels — the right dock is a reserved, empty 280px column until Unit 07.
+
+**`src/print/guides.ts`** — the geometry, pure. `guidesFor(book, pageIndex, pageCount,
+{ surface, bleedOn })` returns `Guide[]` (`{ kind, rectIn, label }`), computed entirely
+from Unit 03 (`safeAreaFor`, `kdpMarginsFor`, `coverSpecFor`, `barcodeKeepOutIn`). No new
+KDP math. Interior guides: trim, safe area, gutter (left on recto, right on verso), and
+the bleed band (top/bottom/outside only — the gutter edge is never trimmed) when bleed is
+on. Cover guides: bleed, trim, spine fold, back/front safe areas (panels inset by KDP's
+0.25 in minimum, placement ported from `legacy/novelka/src/services/cover-guides.ts`),
+and the barcode keep-out. Impossible requests throw `GuideError`; hardcover passes
+through Unit 03's `UnsupportedBindingError`. Every numeric label carries a unit
+(`Gutter 0.375 in`).
+
+**`src/ui/canvas/GuideOverlay.tsx`** — DOM above the canvas, never Fabric (architecture
+§9 rule 4). `pointer-events: none` inline AND in the stylesheet, `aria-hidden`, fixed
+instrument colours via the `--guide-*` tokens. A hidden guide renders nothing — no
+invisible element that could still be hit. Renders interior pages and the cover surface.
+
+**`src/state/ui-store.ts`** — the second store (architecture §6): `zoom` (clamped,
+step ladder), `currentPageIndex`, `visibleGuides` (per guide kind), `bleedOn` (D9),
+`activePanel` (declared for Unit 07), `selection` (declared for Unit 09). Nothing in it
+is ever persisted, undone, or written to the Document; the test asserts the ui-store and
+Document key sets are disjoint.
+
+**Shell** — `ui-context.md` §7 exactly: `TopBar.tsx` (48px; brand, inline-editable book
+name dispatching one `book/setTitle` per commit, monospaced trim and page count readouts;
+Preflight/Export absent, not greyed out — honesty rule 3), `LeftRail.tsx` (56px; ported
+FoundationRail structure per D17 — `aria-pressed`, labels under icons; only the toggles
+that work are rendered: safe, gutter, trim, and the bleed guide toggle only while bleed
+is on; rulers/grid/snap belong to Unit 09 and are absent), `BottomBar.tsx` (36px; ported
+EditorFooter behaviour — zoom out/readout/in, Fit, the "9 of 10" page indicator that
+swaps to an inline jump-to-page input (D21), and the bleed Toggle (D9)), `AppShell.tsx`
+(dark chrome `--surface`, paper on `--workspace` #4a4a4c grey (D23), reserved empty
+right dock, keyboard zoom shortcuts, autosave wiring kept from Unit 05).
+
+**`src/ui/kit/`** — Button, Field, Select, Toggle, Tooltip, Icon. Tokenised, no library.
+Icons are hand-drawn on a 20×20 grid at 1.5px stroke (D15, never Lucide). Print terms get
+real explanatory tooltips (gutter, bleed, trim, safe area) shown on hover and focus.
+`index.css` grew the full token set (type scale, spacing, radius, fonts — IBM Plex Sans/
+Mono stacks); the dead `App.css` placeholder was deleted.
+
+**Tests** — `guides.test.mjs` (pure: rects inside the page at all six trims, recto/verso
+gutter flip, bleed toggles only the bleed rect, spine+barcode are cover-only, 150→151
+band crossing moves the gutter guide, labels carry units, refusals), `ui-store.test.mjs`
+(key sets disjoint from the Document; toggling guides/zoom/bleed leaves `doc`, `past`,
+`future` untouched by reference; guides toggle independently; zoom clamps),
+`overlay.test.mjs` (jsdom: guides are DIVs not canvas objects, pointer-events none
+inline and in CSS, hidden guide renders nothing, overlay above the canvas in stacking
+order, cover surface renders spine and barcode), `no-dead-controls.test.mjs` (walks the
+rendered shell; fails on any disabled control; Preflight/Export/Ruler/Grid/Snap absent;
+every control has an accessible name; no em dashes; "1 of 24"; units on numbers).
+18/18 suites green.
+
+**Placeholder document** — `state/store.ts` now creates a blank 24-page book (KDP's
+minimum) instead of 0 pages, so the shell stands on real recto/verso pages until the New
+Book flow (Unit 10) replaces it.
+
+**Verification, all run and all green:** `npm run check` (lint 0/0 · `tsc -b` clean ·
+18/18 suites · build passes) · `grep -rn "from 'fabric'" src/ui/` empty ·
+`grep -rn "lucide\|react-icons" src/` empty · `grep -rn "#6366f1\|#a78bfa" src/` empty ·
+no guide state in `model/` or the Document · paper on `--workspace` grey (D23) ·
+all six guides toggle independently (test) at all six trims recto and verso (test) ·
+dev server runs with no console errors. Note: the spec's literal
+`grep -rni "inter\b..."` check matches the substring in "pointer" and "printer", so the
+D15 intent was verified instead: no Inter/Geist/Space Grotesk font reference exists
+anywhere in `src/`.
+
+**Invariants checked explicitly** (`architecture.md` §10). Applicable and held: 1–2 (ui
+reads the Document, dispatches Commands; guides flow Document → print → DOM, nothing
+back), 4 (the only conversion is `inToPx`/`inToPt` at the render boundary), 5 (guides
+are DOM overlays, never in `elements`, never selectable, never exported), 6 (cover
+guides are a separate surface; interior guides never show spine/barcode), 7 (guide
+geometry reads Unit 03's tested functions; no new KDP math), 13 (no dead controls —
+enforced by a test), 14 (zero `any`, zero `!`), 15 (`print/guides` imports model only;
+`ui/` imports downward only), 16 (no backend).
 
 ### Unit 05 — The canvas renderer *(17 August 2026)*
 
@@ -518,19 +600,20 @@ the new standards.
 
 ## In Progress
 
-- Nothing. Unit 04 is finished and verified; Unit 05 has not started.
+- Nothing. Unit 06 is finished and verified; Unit 07 has not started.
 
 ---
 
 ## Next Up
 
-**Unit 05 — Canvas renderer.** `render/canvas/` — the only place Fabric is imported.
-Document → pixels, one way, DPR-aware, 2× supersampled, capped at 4096 px (ported
-rendering math). Done when destroying and recreating the canvas every frame changes
-nothing but speed. This is the unit that proves the architecture.
+**Unit 07 — Right dock: Pages** *(ported design, D17)*. The Pages tab reproduced exactly:
+thumbnails, subtle insert gutters, warning dot, selected state, drag-reorder with
+drop-line, duplicate, delete. IntersectionObserver + rAF-throttled live thumbnails.
+Reads the Document, dispatches Commands. Done when it is indistinguishable from the
+original, except it cannot desync.
 
 The full ordered plan is `context/specs/00-build-plan.md` — 23 units in five phases.
-Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable book.
+Checkpoints: Unit 05 proved the architecture, Unit 11 is the first shippable book.
 
 ---
 
@@ -566,6 +649,24 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
 8. ~~**The stored record has no `thumbnail`.**~~ **Resolved by Unit 05.**
    `renderThumbnail` implemented in `src/render/thumbnail.ts` and `StoredProject` /
    `storage.save` support `thumbnail`.
+
+9. **Where `bleedOn` lives long-term** (Unit 06). Spec 06 puts the bleed toggle in
+   `ui-store`, and it is there. But D9 says turning bleed on "changes page geometry,
+   guides, and export together" — export (Unit 11) is derived from the Document alone
+   (architecture §2 rule 4: "the Document alone is enough to render, preflight, and
+   export"). If bleed must affect export, it is a fact about the book, not about the
+   view, and belongs in `BookSettings` with a `book/setBleed` command and a schema
+   migration. Nothing breaks today; flagging it so Unit 11 resolves it deliberately
+   instead of discovering it.
+10. **The spec's D15 grep is loose** (Unit 06). `grep -rni "inter\b" src/` matches the
+   trailing "inter" in "pointer" and "printer" (for example `pointer-events`, which the
+   guide overlays require). The intent — no Inter/Geist/Space Grotesk font — is
+   verified and holds; the literal command cannot pass while `pointer-events` exists.
+11. **Spine and barcode guide toggles have no rail buttons yet** (Unit 06). Both kinds
+   exist in `visibleGuides` and render on the cover surface, but the editor shows only
+   interior pages until Unit 10 builds the cover surface, and a toggle over a guide
+   that cannot currently render would be a dead control. Their toggles ship with the
+   cover surface in Unit 10.
 
 Everything else was resolved on 17 August 2026 (D24). The owner decided History (keep),
 PDF import (cut) and fonts (keep); the remaining calls were delegated to the agent and are
