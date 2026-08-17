@@ -14,23 +14,27 @@
  *
  * Two rules make the rest fall out:
  *
- *  1. **`dispatch` is the only assignment to `doc`.** Everything else asks for
- *     a change by naming a Command.
- *  2. **A rejected command changes nothing.** `apply` then
- *     `assertValidDocument` both run before anything is stored. If either
- *     throws, the old Document survives untouched and the error propagates to
- *     the caller, which is the only place that can explain it to a person.
+ *  1. **`dispatch` and `load` are the only assignments to `doc`.** Everything
+ *     else asks for a change by naming a Command. `load` is deliberately not a
+ *     Command: undoing past the moment a book was opened is meaningless, and
+ *     the previous book's history must not survive into this one (spec 04 §4).
+ *  2. **A rejected change changes nothing.** `apply` (or `migrate`) then
+ *     `assertValidDocument` all run before anything is stored. If any throws,
+ *     the old Document survives untouched and the error propagates to the
+ *     caller, which is the only place that can explain it to a person.
  *
  * There are no timers here, no coalescing and no debouncing. One dispatch is
  * one undo entry: a gesture previews from local component state and commits a
  * single command when it ends (spec 02 §3). That keeps `apply` pure and undo
- * granularity obvious.
+ * granularity obvious. The debounce timer for autosave lives in
+ * `state/autosave.ts`, never here.
  */
 
 import { create } from 'zustand';
 import { apply } from '../model/commands';
 import type { Command, CommandName } from '../model/commands';
 import { assertValidDocument } from '../model/document';
+import { migrate } from '../model/migrate';
 import type { Document } from '../model/types';
 
 /** How many undo steps are kept. Entries share structure, so this is cheap. */
@@ -51,6 +55,13 @@ export type DocStore = {
   readonly future: readonly HistoryEntry[];
   /** The only writer. `now` is injected so the store never reads the clock itself. */
   dispatch: (cmd: Command, now: number) => void;
+  /**
+   * Replaces the Document (opening a saved book) and clears `past` and
+   * `future`. Runs `migrate` then `assertValidDocument` and throws before
+   * touching the store if either fails. Not a Command — `apply` stays pure and
+   * its union stays closed.
+   */
+  load: (document: Document) => void;
   undo: () => void;
   redo: () => void;
   /** Jump to the state at `past[index]`. D24.1 — the History panel is a view of `past`. */
@@ -129,6 +140,15 @@ export function createDocStore(initial: Document) {
         past: capped([...get().past, { label: labelFor(cmd), doc: previous }]),
         future: [],
       });
+    },
+
+    load: (document) => {
+      // Migrate first, then validate. Both throw before anything is stored,
+      // exactly like dispatch, so a rejected load leaves the store untouched.
+      const migrated = migrate(document);
+      assertValidDocument(migrated);
+
+      set({ doc: migrated, past: [], future: [] });
     },
 
     undo: () => {

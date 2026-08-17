@@ -78,11 +78,12 @@ console.log('\n=== a new store holds the document and an empty history ===');
   assert.deepEqual(state.past, []);
   assert.deepEqual(state.future, []);
 
-  // The store holds the document and its history, and nothing else. Selection,
-  // zoom, panels and theme belong to ui-store (architecture.md §2).
+  // The store holds the document, its history, and `load` (spec 04 §4), and
+  // nothing else. Selection, zoom, panels and theme belong to ui-store
+  // (architecture.md §2).
   assert.deepEqual(
     Object.keys(state).sort(),
-    ['dispatch', 'doc', 'future', 'jumpTo', 'past', 'redo', 'undo'],
+    ['dispatch', 'doc', 'future', 'jumpTo', 'load', 'past', 'redo', 'undo'],
     'no selection, zoom, panel or theme state lives in the document store',
   );
 

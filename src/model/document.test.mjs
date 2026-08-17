@@ -96,7 +96,7 @@ console.log('\n=== createDocument ===');
   assertValidDocument(doc);
 
   assert.equal(doc.schemaVersion, CURRENT_SCHEMA_VERSION);
-  assert.equal(doc.schemaVersion, 1, 'the schema starts at version 1');
+  assert.equal(doc.schemaVersion, 2, 'new documents are written at the current schema version');
   assert.deepEqual(doc.book, { trimId: '6x9', paper: 'bw-white', binding: 'paperback' });
   assert.equal(doc.pages.length, 3);
   assert.equal(doc.cover, null, 'a new document has no cover surface yet');
@@ -322,7 +322,7 @@ console.log('PASS assertValidDocument');
 
 /* ------------------------------------------------------------ migration -- */
 
-console.log('\n=== migrate accepts a valid v1 document unchanged ===');
+console.log('\n=== migrate upgrades a v1 document to the current version, content unchanged ===');
 {
   const doc = makeDoc({ pageCount: 2 });
   const withContent = {
@@ -334,13 +334,15 @@ console.log('\n=== migrate accepts a valid v1 document unchanged ===');
     ],
   };
 
-  const raw = JSON.parse(JSON.stringify(withContent));
+  // A book written by the previous schema (version 1) must open. The v1 -> v2
+  // step is a deliberate no-op, so only the version field changes.
+  const raw = JSON.parse(JSON.stringify({ ...withContent, schemaVersion: 1 }));
   const migrated = migrate(raw);
-  assert.deepEqual(migrated, withContent, 'a v1 document is returned unchanged');
+  assert.deepEqual(migrated, withContent, 'a v1 document migrates to the current version, content unchanged');
   assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
 
   // migrate is pure: the input object is not mutated.
-  assert.deepEqual(raw, JSON.parse(JSON.stringify(withContent)), 'migrate does not mutate its input');
+  assert.deepEqual(raw, JSON.parse(JSON.stringify({ ...withContent, schemaVersion: 1 })), 'migrate does not mutate its input');
 }
 console.log('PASS migrate v1');
 
@@ -354,7 +356,7 @@ console.log('\n=== migrate rejects malformed input with a useful message ===');
     [undefined, /expected an object/, 'undefined'],
     ['{}', /expected an object/, 'a string'],
     [[], /expected an object/, 'an array'],
-    [{}, /schemaVersion: expected a finite number/, 'an empty object'],
+    [{}, /schemaVersion: is missing/, 'an empty object'],
     [{ ...valid, schemaVersion: '1' }, /schemaVersion: expected a finite number/, 'a string version'],
     [{ ...valid, schemaVersion: 1.5 }, /schemaVersion: expected an integer of 1 or more/, 'a fractional version'],
     [

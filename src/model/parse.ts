@@ -265,6 +265,11 @@ function parseMeta(value: unknown, path: string): DocumentMeta {
 /** Reads the `schemaVersion` of unknown input without trusting anything else about it. */
 export function readSchemaVersion(value: unknown, path = 'document'): number {
   const record = asRecord(value, path);
+  if (!Object.prototype.hasOwnProperty.call(record, 'schemaVersion')) {
+    throw new DocumentParseError(
+      `${path}.schemaVersion: is missing. A saved book must carry its schemaVersion, so it is refused rather than assumed to be version 1.`,
+    );
+  }
   const version = asFiniteNumber(record['schemaVersion'], `${path}.schemaVersion`);
   if (!Number.isInteger(version) || version < 1) {
     fail(`${path}.schemaVersion`, 'an integer of 1 or more', record['schemaVersion']);
