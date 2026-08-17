@@ -3,17 +3,17 @@
 > Update this file after every meaningful implementation change.
 > It is how the next session recovers full context in one prompt.
 
-**Last updated:** 17 August 2026 — Unit 04 complete
+**Last updated:** 17 August 2026 — Unit 05 complete
 
 ---
 
 ## Current Phase
 
-**Phase 1 — Foundation.** Units 01, 02, 03 and 04 are complete. The Document exists, it is
-changeable in exactly one way (dispatch a Command), the KDP numbers it is derived against
-are locked and tested, and work now survives a reload: IndexedDB save/load, debounced
-autosave, the `schemaVersion` migration chain, and `StorageFullError` with the "download
-my work" escape hatch.
+**Phase 1 — Foundation.** Units 01, 02, 03, 04 and 05 are complete. The Document exists,
+it is changeable in exactly one way (dispatch a Command), the KDP numbers it is derived
+against are locked and tested, persistence and autosave are proven, and the canvas
+renderer proves the one-way Document → pixels architecture. Destroying and recreating the
+canvas every frame produces byte-identical output.
 
 The previous build now lives in `legacy/novelka/` and is the **reference implementation** —
 the source of ported logic. It is not the thing being extended, it is not linted, and it
@@ -23,14 +23,87 @@ is not built.
 
 ## Current Goal
 
-**Unit 05 — Canvas renderer.** `render/canvas/` becomes the only place Fabric is imported.
-Document → pixels, one way, DPR-aware, 2× supersampled, capped at 4096px. This is the
-unit that proves the architecture (spec `05-` once written; the build-plan summary is in
-`00-build-plan.md`).
+**Unit 06 — Editor shell and guides.** App shell, top bar, left rail, bottom bar (zoom,
+fit, "9 of 10" page indicator with jump). Guide overlays as DOM above the canvas: bleed,
+trim, safe area, gutter, spine, barcode. Dark UI, grey paper surround (D23).
 
 ---
 
 ## Completed
+
+### Unit 05 — The canvas renderer *(17 August 2026)*
+
+Built against `context/specs/05-canvas-renderer.md`. Turns a Document into pixels, one
+direction only. Proves the core architecture invariant (D2: Document is the only source
+of truth; Fabric is a disposable painter that stores nothing).
+
+**`src/render/canvas/`** — the only place Fabric is imported across the entire codebase.
+Enforced by `fabric-boundary.test.mjs`, which walks `src/` and fails if Fabric is imported
+anywhere outside this folder or if any Fabric type is exported outside it.
+
+**`src/render/canvas/resolution.ts`** — PORTED pure resolution and viewport math from
+`legacy/novelka/src/engine/canvas-engine.ts` L307–348:
+- CSS size is an integer.
+- Backing store = CSS × `devicePixelRatio`.
+- 2× supersampling below the cap keeps text and shapes crisp at fractional zooms (73%, 137%).
+- Capped at 4096 px on the long side to prevent GPU memory exhaustion.
+- `pixelScaleFor({ cssW, cssH, dpr, maxPx })` and `computeCanvasDimensions(...)`.
+
+**`src/render/canvas/render-page.ts`** — `renderPage(canvas, page, book, scale)`:
+- Pure painter: reads `page.elements` in ascending `z` order and draws them onto the canvas.
+- Converts inches → px exactly once at the boundary via `model/units` (`inToPx`, `ptToIn`).
+- `grep -rn "\* ?72\|/ ?72" src/render/` hits nothing.
+- Writes nothing back: no `toJSON()`, no `toObject()`, no geometry read back.
+- Fabric objects carry `{ elementId }` for hit-testing and nothing else.
+- A puzzle element renders as ONE Fabric object (D3 placeholder frame; real drawing in Unit 12).
+- `kind` is read from element, never inferred (D18, invariant 8).
+- `hidden: true` elements are skipped.
+
+**`src/render/canvas/CanvasHost.tsx`** — the single React seam owning a Fabric Canvas instance:
+- Creates canvas on mount, `dispose()` called on unmount.
+- Subscribes to `store`; uses structural sharing from Unit 02 to skip repaint if `page`
+  and `book` references have not changed.
+- Exactly 1 `useEffect` hook (`grep -c "useEffect"` is 2 including import, <= 2 limit).
+- Paper styling: pure white on `--workspace` grey (`#4a4a4c`) with a soft drop shadow (D23).
+
+**`src/render/canvas/thumbnail.ts` + `src/render/thumbnail.ts`** —
+`renderThumbnail(page, book, maxPx)`:
+- Same code path as the main renderer (`renderPage`).
+- Paints opaque white background before `toDataURL` (the D17 transparent-to-black JPEG fix).
+- Quality 0.6 JPEG, multiplier `min(1, maxPx / pageWidthPx)`.
+- Re-exported by `src/render/thumbnail.ts` without leaking Fabric types.
+- Closes tracker open question 8: `StoredProject` and `storage.save(doc, thumbnail)` support `thumbnail`.
+
+**`src/ui/app/AppShell.tsx`** — the minimum shell:
+- Centred workspace on `--workspace` grey (`#4a4a4c`), dark header and footer (`#191a1c`).
+- Zoom controls (zoom in, zoom out, 100% reset, Fit) and keyboard shortcuts (`Ctrl/Cmd +/-/0`).
+- Wires Unit 04 autosave (`createAutosave` on mount, `stop()` on unmount), closing tracker open question 7.
+
+**Tests** — `resolution.test.mjs`, `fabric-boundary.test.mjs`, `render-page.test.mjs`,
+`thumbnail.test.mjs`, chained into `npm run test` (14/14 suites green):
+- `resolution`: 2× supersample applied below cap; 3000×3000 at dpr 2 yields long side of 4096;
+  `pixelScale` >= 1; integer CSS dimensions across all tested dpr and fractional zooms.
+- `fabric-boundary`: walks `src/` to prove Fabric is imported in `src/render/canvas/` only;
+  no Fabric types exported outside canvas; no `toJSON`/`toObject` calls in `src/`;
+  no raw `* 72` / `/ 72` in `src/render/`; `CanvasHost.tsx` has <= 2 `useEffect`.
+- `render-page`: **the headline rebuild test passes** — render page with all element kinds,
+  snapshot, dispose canvas completely, create new canvas, render same document, assert snapshots
+  are byte-identical; deep-frozen document verified unchanged after rendering; elements render
+  in `z` order; `hidden: true` renders nothing; puzzle produces exactly one Fabric object;
+  `dispose()` cleans up all listeners.
+- `thumbnail`: JPEG data URL produced on opaque white ground; `maxPx` and aspect ratio preserved.
+
+**Verification, all run and all green:** `npm run check` (lint 0 errors 0 warnings ·
+`tsc -b` clean · 14/14 suites · build passes) · `grep -rn "from 'fabric'" src/ | grep -v "src/render/canvas/"` empty ·
+`grep -rn "toJSON()\|toObject()" src/` empty · `grep -rn "\* ?72\|/ ?72" src/render/` empty ·
+`grep -c "useEffect" src/render/canvas/CanvasHost.tsx` <= 2.
+
+**Invariants checked explicitly** (`architecture.md` §10). Applicable and held: 1 (the
+Document is the only truth; Fabric holds no state Document does not have), 2 (data flows
+one way: Document → render; no state flows back), 3 (`renderPage` does not mutate input),
+4 (all conversions in `units.ts`), 5 (guides are not in canvas elements), 8 (`kind` is read,
+never inferred), 14 (zero `any`, zero `!`), 15 (`render/canvas/` imports `model/` and `print/`,
+nothing higher), 16 (no backend).
 
 ### Unit 04 — Storage and migrations *(17 August 2026)*
 
@@ -488,12 +561,11 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
    provenance note states). It is our locked contract; if the owner ever downloads a real
    KDP cover template and a value disagrees, the table is corrected and the test follows
    the table. Nothing to do now — flagged so the provenance is never mistaken for gospel.
-7. **Autosave is a factory with no caller yet.** Nothing calls `createAutosave` until a
-   bootstrap exists (Unit 05+). The spec delivered the factory and the store singleton;
-   the wiring — subscribe once at startup, `stop()` on close, read the recovery candidate
-   on boot — lands with the app shell. Flagged so it is not mistaken for an omission.
-8. **The stored record has no `thumbnail`.** Architecture §8 lists `thumbnail` in the
-   record; it is deferred to Unit 05 (needs the renderer) and will be added there.
+7. ~~**Autosave is a factory with no caller yet.**~~ **Resolved by Unit 05.**
+   Wired in `src/ui/app/AppShell.tsx` at startup, flushes on unload via `stop()`.
+8. ~~**The stored record has no `thumbnail`.**~~ **Resolved by Unit 05.**
+   `renderThumbnail` implemented in `src/render/thumbnail.ts` and `StoredProject` /
+   `storage.save` support `thumbnail`.
 
 Everything else was resolved on 17 August 2026 (D24). The owner decided History (keep),
 PDF import (cut) and fonts (keep); the remaining calls were delegated to the agent and are

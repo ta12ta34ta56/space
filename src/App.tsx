@@ -1,5 +1,5 @@
-import './App.css';
+import { AppShell } from './ui/app/AppShell';
 
 export default function App() {
-  return <main className="app-placeholder">Novelka</main>;
+  return <AppShell />;
 }
