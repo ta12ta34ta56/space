@@ -8,11 +8,14 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "oxlint --disable-nested-config --deny-warnings",
-    "test": "npm run test:units && npm run test:document && npm run test:commands && npm run test:doc-store",
+    "test": "npm run test:units && npm run test:document && npm run test:commands && npm run test:doc-store && npm run test:trims && npm run test:margins && npm run test:cover",
     "test:units": "esbuild src/model/units.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/units.built.mjs --log-level=error && node src/model/units.test.mjs",
     "test:document": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && node src/model/document.test.mjs",
     "test:commands": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && node src/model/commands.test.mjs",
     "test:doc-store": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && esbuild src/state/doc-store.ts --bundle --format=esm --platform=node --packages=external --outfile=src/state/doc-store.built.mjs --log-level=error && node src/state/doc-store.test.mjs",
+    "test:trims": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && esbuild src/print/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/print/print.built.mjs --log-level=error && node src/print/trims.test.mjs",
+    "test:margins": "esbuild src/print/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/print/print.built.mjs --log-level=error && esbuild legacy/novelka/src/services/kdp.ts --bundle --format=esm --platform=node --packages=external --outfile=legacy/novelka/src/services/kdp.built.mjs --log-level=error && node src/print/margins.test.mjs",
+    "test:cover": "esbuild src/print/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/print/print.built.mjs --log-level=error && node src/print/cover.test.mjs",
     "check": "npm run lint && tsc -b && npm run test && npm run build"
   },
   "dependencies": {

@@ -3,14 +3,15 @@
 > Update this file after every meaningful implementation change.
 > It is how the next session recovers full context in one prompt.
 
-**Last updated:** 17 August 2026 — Unit 02 complete
+**Last updated:** 17 August 2026 — Unit 03 complete
 
 ---
 
 ## Current Phase
 
-**Phase 1 — Foundation.** Units 01 and 02 are complete. The Document exists, and it is now
-changeable in exactly one way: dispatch a Command.
+**Phase 1 — Foundation.** Units 01, 02 and 03 are complete. The Document exists, it is
+changeable in exactly one way (dispatch a Command), and the numbers it is derived against
+— trims, papers, margins, safe area, cover geometry — are locked and tested.
 
 The previous build now lives in `legacy/novelka/` and is the **reference implementation** —
 the source of ported logic. It is not the thing being extended, it is not linted, and it
@@ -20,14 +21,111 @@ is not built.
 
 ## Current Goal
 
-**Unit 03 — KDP print truth.** `print/trims.ts` (six trims, one paper vocabulary),
-`print/margins.ts` (**ported**, gutter bands, recto/verso safe area), `print/cover.ts`
-(**rebuilt** against a reference table — D8). Its spec has not been written yet; see the
-open question below.
+**Unit 04 — Storage and migrations.** IndexedDB save/load, debounced autosave,
+`schemaVersion` migrations, `StorageFullError` with "download my work". Its spec has not
+been written yet; see the open question below.
 
 ---
 
 ## Completed
+
+### Unit 03 — KDP print truth *(17 August 2026)*
+
+Built against `context/specs/03-print-truth.md`. Nothing beyond that spec was implemented:
+no rendering, no guides, no preflight, no cover document, no UI. This unit is pure math
+with tests.
+
+**`src/print/trims.ts`** — the six trims (D7) and the **one paper vocabulary** (D8 defect
+4). The paper *names* are declared in `model/types.ts` (the bottom layer, so the Document
+can carry them) and re-exported here; the physical facts — `PAPER_STOCKS_INFO` with
+`perPageIn` / `minPages` / `maxPages` — live here. `color-standard` is explicitly
+0.002252 in, not premium's 0.002347 in (D8 defect 1, pinned by a regression test).
+Per-trim ceilings are ported from the legacy limit table and trimmed to six trims:
+`8.5x11` caps bw-white at 590, and `a4` returns **null** for `color-standard` —
+unavailable, not merely limited. `assertPageCountFor` rejects out-of-range counts with a
+message naming the limit **and** the paper; `UnsupportedBindingError` is thrown by every
+function asked for hardcover (D24.4 — an honest refusal beats a rejected upload).
+
+**`src/print/margins.ts`** — PORTED from `legacy/novelka/src/services/kdp.ts` with
+exactly two changes and no others: (1) inches only — the legacy point fields are dropped
+(architecture §3); (2) `safeAreaFor` takes a `TrimId` + `PaperStock` instead of bare
+pageWidth/pageHeight. The gutter bands (150→0.375, 151→0.5, 300→0.5, 301→0.625,
+500→0.625, 501→0.75, 700→0.75, 701→0.875, 828→0.875), the recto/verso rule (odd pages
+are right-hand, gutter on the LEFT), and the bleed constants are verbatim. New export
+`gutterBandFor` returns the band `{ maxPages, gutterIn }` because D16 needs band
+comparisons, not width comparisons.
+
+**`src/print/cover.ts`** — REBUILT, not ported (D8). `spine = pageCount × paper.perPageIn`
+with **no +0.06″ allowance**; `width = 0.125 + trimW + spine + trimW + 0.125`;
+`height = 0.125 + trimH + 0.125`. Spine text is allowed at **79 pages or more** (`>= 79`,
+D8 defect 3); below that, `spineTextAllowed: false` so the UI can disable the control.
+Barcode keep-out is 2″ × 1.2″ at the bottom-right of the back cover, offset 0.25″ from
+the trim, placement ported from `legacy/cover-guides.ts`. Hardcover throws
+`UnsupportedBindingError` at every trim.
+
+**`src/print/reference-table.ts`** — the frozen 12-row `COVER_REFERENCE_TABLE`
+(trim × paper × pages → spine, cover width, cover height) with the provenance note from
+the spec: these are **derived** values, consistent by construction, our locked contract
+rather than gospel — if a real KDP template ever disagrees, the table is corrected and
+the test follows the table. `COVER_REFERENCE_TOLERANCE_IN = 0.0005`.
+
+**`src/print/index.ts`** — the barrel for the layer (spec §5). The spec explicitly
+requires it; the layer's exports all funnel through it.
+
+**Model sync required by the spec, kept minimal:** `model/types.ts` `PAPER_STOCKS` now
+declares the spec's five stocks (`premium-color` → `color-premium`, plus
+`color-standard`). This is the "one paper vocabulary" requirement — the Document model
+and the print layer share the same five ids, so D8 defect 4 cannot return. One existing
+test (`commands.test.mjs` purity list) was updated from `'premium-color'` to
+`'color-premium'`; no other model code changed.
+
+**Tests** — `trims.test.mjs`, `margins.test.mjs`, `cover.test.mjs`, run by plain Node
+over an esbuild bundle (`npm run test:trims` / `test:margins` / `test:cover`, chained
+into `npm run test`):
+
+- `trims`: TRIM_IDS matches `model/types.ts` **exactly** (compared against the model
+  bundle); five stocks with the exact thicknesses; the color-standard 0.002252 pin;
+  a4 + color-standard is null (unavailable), every other a4 paper is available;
+  rejection messages name the limit and the paper; per-trim ceilings match the legacy
+  limit table.
+- `margins`: all nine gutter band boundaries; recto/verso gutter side; safe area inside
+  the trim at every trim × every band; bleed shifting the outer minimum to 0.375;
+  **ported values compared against a bundle of the actual legacy `kdp.ts`** — the same
+  inputs give the same values, so a divergence means the port went wrong.
+- `cover`: every reference row passes within 0.0005″ (the unit's headline test); 78/79/80
+  spine-text threshold; spine is exactly `pages × perPageIn` (no +0.06); hardcover throws
+  `UnsupportedBindingError` at all six trims; the barcode box sits inside the back cover
+  and clears the spine at the thinnest and thickest spine, all six trims.
+
+**Verification, all run and all green:** `npm run check` (lint 0 errors 0 warnings ·
+`tsc -b` clean · 7/7 suites · build passes) · `grep -rn "\* ?72\|/ ?72" src/print/`
+empty · `grep -rn "state/\|render/\|ui/\|fabric" src/print/` empty · `grep -rn
+"0.002252" src/` hits only `print/trims.ts` and the tests · no `any`, no `@ts-ignore`,
+no non-null `!` · every exported number is inches with an `In` suffix (page counts and
+`Pt`-free by construction).
+
+**Invariants checked explicitly** (`architecture.md` §10). Applicable and held: 1 (pure
+functions; nothing renderer-shaped enters the Document), 4 (all geometry inches; no
+conversion in `print/` — the grep proves it), 6 (cover geometry is a `CoverSpec`, never
+a `Cover` element in `pages[]`), 7 (one paper vocabulary, five ids, shared with the
+model; reference-table test pins the math), 10 (six trims, tested against the model),
+14 (zero `any`, zero `!`), 15 (`print/` imports only `model/`), 16 (no backend). Not yet
+applicable, nothing in this unit contradicts them: 2, 3, 5, 8, 9, 11, 12, 13, 17.
+
+Judgement calls recorded rather than left silent:
+
+- **`safeAreaFor` validates the page count** (`assertPageCountFor`) before computing.
+  The spec's two changes to the port were inches-only and TrimId/PaperStock instead of
+  raw numbers; validation is a deliberate consequence of the new signature — the paper
+  parameter must mean something, and an honest refusal beats computing a safe area for a
+  book KDP would reject. If the owner wants the legacy silently-clamping behaviour back,
+  remove the one `assertPageCountFor` call. Documented in the `margins.ts` header.
+- **The legacy comparison test builds `legacy/novelka/src/services/kdp.built.mjs`** into
+  the legacy tree (gitignored via `**/*.built.mjs`) so the port test can import the real
+  legacy code, not a copy of its numbers. `src/print/` stays clean for the grep checks.
+- **`kdpMarginsFor` kept its legacy `(pageCount, options)` signature** — the spec's
+  "take a TrimId and a PaperStock" applies to `safeAreaFor`, the function that actually
+  took raw pageWidth/pageHeight.
 
 ### Unit 02 — commands and the document store *(17 August 2026)*
 
@@ -237,20 +335,17 @@ the new standards.
 
 ## In Progress
 
-- Nothing. Unit 02 is finished and verified; Unit 03 has not started.
+- Nothing. Unit 03 is finished and verified; Unit 04 has not started.
 
 ---
 
 ## Next Up
 
-**Unit 03 — KDP print truth.** `print/trims.ts` (the six trims and the page-count limits
-per paper, one paper vocabulary), `print/margins.ts` (**ported** — gutter bands, recto and
-verso safe area), `print/cover.ts` (**rebuilt** against a reference table of known-good KDP
-values, D8). Done when the cover reference table passes, and spine, cover size and safe
-area are correct for all six trims at every gutter band.
-
-Write `context/specs/03-*.md` first, the way Units 01 and 02 were specified before they
-were built.
+**Unit 04 — Storage and migrations.** IndexedDB save/load, debounced autosave,
+`schemaVersion` migrations, `StorageFullError` with a "download my work" escape. Done
+when a document survives save → reload → identical, and a v1 document opens under a v2
+schema. `state/storage.ts` will also settle open question 4 (how a loaded project becomes
+the live document).
 
 The full ordered plan is `context/specs/00-build-plan.md` — 23 units in five phases.
 Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable book.
@@ -259,12 +354,11 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
 
 ## Open Questions
 
-1. **Unit 03 has no spec file yet.** `context/specs/` holds `00-build-plan.md`,
-   `01-skeleton-and-model.md` and `02-commands-and-store.md`. The build plan's summary of
-   Unit 03 is not enough to implement against on its own — in particular which legacy files
-   are ported verbatim versus rebuilt, and where the cover reference table's values come
-   from and how they are cited. Owner to write the spec, or to say the agent should draft
-   it for review first.
+1. **Unit 04 has no spec file yet.** `context/specs/` holds `00-build-plan.md` and
+   `01-` / `02-` / `03-` unit specs. The build plan's summary of Unit 04 — IndexedDB
+   save/load, debounced autosave, migrations, `StorageFullError` with "download my work"
+   — is not enough to implement against on its own. Owner to write the spec, or to say
+   the agent should draft it for review first.
 2. **`PuzzleData` / `PuzzleStyle` are `Record<string, never>` until Unit 12.** The parser
    therefore *rejects* any puzzle carrying real data, with a message pointing at Unit 12.
    This is correct for now, but it means no document written between here and Unit 12 can
@@ -278,6 +372,15 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
    singleton, because no UI exists to consume one and Unit 04 (storage) will decide how a
    loaded project becomes the live document. Whether the app ends up with a module-level
    store or a provider is a Unit 04 question, deliberately not answered here.
+5. **`safeAreaFor` validates the page count before computing** (Unit 03 judgement call,
+   recorded in the Unit 03 section). The spec's port changes were inches-only and
+   TrimId/PaperStock; validation was added so the paper parameter means something and an
+   illegal book is refused loudly. Remove the single `assertPageCountFor` call in
+   `safeAreaFor` if the owner prefers the legacy silently-clamping behaviour.
+6. **The cover reference table is derived, not scraped from Amazon** (as the spec's
+   provenance note states). It is our locked contract; if the owner ever downloads a real
+   KDP cover template and a value disagrees, the table is corrected and the test follows
+   the table. Nothing to do now — flagged so the provenance is never mistaken for gospel.
 
 Everything else was resolved on 17 August 2026 (D24). The owner decided History (keep),
 PDF import (cut) and fonts (keep); the remaining calls were delegated to the agent and are

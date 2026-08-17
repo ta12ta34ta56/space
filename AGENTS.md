@@ -72,14 +72,15 @@ implementing.
 
 ## Status
 
-**Phase 0 — planning complete, implementation not started.**
+**Phase 1 — foundation. Units 01, 02 and 03 are complete.**
 
-`src/` and `server/` are the **previous build**, kept as the
-reference implementation and the source of ported logic.
-They are not the codebase being extended. Roughly 25,000
-lines of proven pure logic — generator algorithms, KDP
-margin math, word banks, preflight, the SVG sanitiser, 20
-parametric templates, ~9,300 lines of tests — are ported by
-copying the file, not rewritten.
+`legacy/novelka/` is the **previous build**, kept as the
+reference implementation and the source of ported logic. It
+is not the codebase being extended. Roughly 25,000 lines of
+proven pure logic — generator algorithms, KDP margin math,
+word banks, preflight, the SVG sanitiser, 20 parametric
+templates, ~9,300 lines of tests — are ported by copying the
+file, not rewritten.
 
-Next unit: **01 — project skeleton and the Document model.**
+Next unit: **04 — storage and migrations.**
+Current detail lives in `context/progress-tracker.md`.

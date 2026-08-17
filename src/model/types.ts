@@ -27,8 +27,21 @@
 export const TRIM_IDS = ['6x9', '5.5x8.5', '7x10', '8x10', '8.5x11', 'a4'] as const;
 export type TrimId = (typeof TRIM_IDS)[number];
 
-/** One paper vocabulary for the whole system (invariant 7). */
-export const PAPER_STOCKS = ['bw-white', 'bw-cream', 'bw-groundwood', 'premium-color'] as const;
+/**
+ * One paper vocabulary for the whole system (invariant 7). The physical facts
+ * about each stock — spine thickness, page-count limits — live in
+ * `print/trims.ts`; this tuple is the shared *naming* vocabulary, so the
+ * Document model and the print layer can never disagree on a paper's id.
+ * `color-standard` shares `bw-white`'s thickness, not premium's — that
+ * confusion is D8 defect 1, and its regression test lives in `trims.test.mjs`.
+ */
+export const PAPER_STOCKS = [
+  'bw-white',
+  'bw-cream',
+  'bw-groundwood',
+  'color-standard',
+  'color-premium',
+] as const;
 export type PaperStock = (typeof PAPER_STOCKS)[number];
 
 export const BINDINGS = ['paperback', 'hardcover'] as const;

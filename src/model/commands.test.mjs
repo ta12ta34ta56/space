@@ -588,7 +588,7 @@ console.log('\n=== apply is pure: frozen input, no clock, no randomness ===');
     { t: 'element/update', pageId: 'p-2', elementId: 'el-text', patch: { text: 'New' } },
     { t: 'element/reorder', pageId: 'p-2', elementId: 'el-text', z: 5 },
     { t: 'book/setTrim', trimId: '7x10' },
-    { t: 'book/setPaper', paper: 'premium-color' },
+    { t: 'book/setPaper', paper: 'color-premium' },
     { t: 'book/setBinding', binding: 'hardcover' },
     { t: 'book/setTitle', title: 'A Book' },
     { t: 'cover/set', cover: coverSurface() },
