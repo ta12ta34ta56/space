@@ -51,6 +51,7 @@ export type StoredProject = {
   readonly schemaVersion: number;
   readonly document: Document;
   readonly updatedAt: number;
+  readonly thumbnail?: string | null;
 };
 
 /** What the project list needs, deliberately without the heavy `document`. */
@@ -263,7 +264,7 @@ export type StorageOptions = {
 export type StorageApi = {
   readonly list: () => Promise<StoredProject[]>;
   readonly get: (id: string) => Promise<StoredProject | null>;
-  readonly save: (document: Document) => Promise<StoredProject>;
+  readonly save: (document: Document, thumbnail?: string | null) => Promise<StoredProject>;
   readonly remove: (id: string) => Promise<void>;
   readonly rename: (id: string, name: string) => Promise<StoredProject>;
   readonly duplicate: (id: string, customName?: string) => Promise<StoredProject>;
@@ -304,13 +305,14 @@ export function createStorage(options: StorageOptions): StorageApi {
     get: getOne,
 
     /** Persists a project. Throws `StorageFullError` when the browser refuses. */
-    async save(document: Document): Promise<StoredProject> {
+    async save(document: Document, thumbnail?: string | null): Promise<StoredProject> {
       assertValidDocument(document);
       const record: StoredProject = {
         id: document.id,
         schemaVersion: document.schemaVersion,
         document,
         updatedAt: now(),
+        ...(thumbnail !== undefined ? { thumbnail } : {}),
       };
       await tx<IDBValidKey>(STORE_PROJECTS, 'readwrite', (s) => s.put(record));
       const cached = readIndex().filter((summary) => summary.id !== record.id);
