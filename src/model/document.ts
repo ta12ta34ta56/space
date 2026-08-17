@@ -15,9 +15,10 @@ import type { Binding, Document, Element, Frame, PaperStock, Page, TrimId } from
 /**
  * The schema version this build writes. Bumped with a migration in the same
  * commit. Version 2 exists solely to exercise the migration chain; it is a
- * deliberate no-op over version 1 (spec 04 §3).
+ * deliberate no-op over version 1 (spec 04 §3). Version 3 adds `book.bleed`
+ * (Unit 07b, D25) and is the first step that does real work.
  */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 /** Thrown when a document breaks a model invariant. */
 export class DocumentInvariantError extends Error {
@@ -33,6 +34,8 @@ export type CreateDocumentInput = {
   readonly trimId: TrimId;
   readonly paper: PaperStock;
   readonly binding: Binding;
+  /** Whether the book is set up for bleed (D25). Defaults to false. */
+  readonly bleed?: boolean;
   /** Number of blank interior pages to create. */
   readonly pageCount: number;
   /** Injected clock. `Date.now` is never called inside this module. */
@@ -75,7 +78,12 @@ export function createDocument(input: CreateDocumentInput): Document {
   const document: Document = {
     id: input.id(),
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    book: { trimId: input.trimId, paper: input.paper, binding: input.binding },
+    book: {
+      trimId: input.trimId,
+      paper: input.paper,
+      binding: input.binding,
+      bleed: input.bleed ?? false,
+    },
     pages,
     cover: null,
     meta: { title: '', createdAt: timestamp, updatedAt: timestamp },

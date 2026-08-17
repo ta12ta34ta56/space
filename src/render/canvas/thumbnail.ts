@@ -11,17 +11,20 @@
 import { StaticCanvas } from 'fabric';
 import type { BookSettings, Page } from '../../model/types';
 import { inToPt, PT_PER_IN } from '../../model/units';
-import { TRIM_SIZE_IN } from '../../print/trims';
+import { pageSizeIn } from '../../print/page-size';
 import { renderPage } from './render-page';
 
 export async function renderThumbnail(
   page: Page,
   book: BookSettings,
   maxPx = 480,
+  pageIndex = 0,
 ): Promise<string> {
-  const trim = TRIM_SIZE_IN[book.trimId];
-  const pageWidthPx = inToPt(trim.widthIn);
-  const pageHeightPx = inToPt(trim.heightIn);
+  // The one definition of how big a page is (Unit 07b): with bleed on the
+  // paper is larger than the trim, and the thumbnail must show that.
+  const size = pageSizeIn(book, pageIndex);
+  const pageWidthPx = inToPt(size.widthIn);
+  const pageHeightPx = inToPt(size.heightIn);
 
   const el = typeof document !== 'undefined' ? document.createElement('canvas') : undefined;
   const c = new StaticCanvas(el, {

@@ -96,8 +96,11 @@ console.log('\n=== createDocument ===');
   assertValidDocument(doc);
 
   assert.equal(doc.schemaVersion, CURRENT_SCHEMA_VERSION);
-  assert.equal(doc.schemaVersion, 2, 'new documents are written at the current schema version');
-  assert.deepEqual(doc.book, { trimId: '6x9', paper: 'bw-white', binding: 'paperback' });
+  assert.equal(doc.schemaVersion, 3, 'new documents are written at the current schema version');
+  assert.deepEqual(doc.book, { trimId: '6x9', paper: 'bw-white', binding: 'paperback', bleed: false });
+
+  // Bleed is a book setting, defaulting to off, and it is stored (Unit 07b).
+  assert.equal(makeDoc({ bleed: true }).book.bleed, true, 'bleed can be set at creation');
   assert.equal(doc.pages.length, 3);
   assert.equal(doc.cover, null, 'a new document has no cover surface yet');
   assert.deepEqual(doc.meta, { title: '', createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000 });
@@ -115,8 +118,11 @@ console.log('\n=== createDocument ===');
   assert.deepEqual(empty.pages, []);
 
   // No derived print geometry is stored. It is computed from `book` (Unit 03).
+  // `bleed` is NOT derived geometry: it is the user's intent, and the page
+  // size is derived from it by `print/pageSizeIn` (Unit 07b, D25). The size
+  // itself still may not appear here.
   const serialised = JSON.stringify(doc);
-  for (const banned of ['margin', 'gutter', 'safeArea', 'spine', 'bleed']) {
+  for (const banned of ['margin', 'gutter', 'safeArea', 'spine', 'widthIn', 'heightIn']) {
     assert.equal(serialised.includes(banned), false, `${banned} must not be stored in the Document`);
   }
 }

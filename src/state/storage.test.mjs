@@ -38,6 +38,7 @@ function makeDoc(pageCount = 3) {
     trimId: '6x9',
     paper: 'bw-white',
     binding: 'paperback',
+    bleed: false,
     pageCount,
     now: () => CREATED_AT,
     id: counterIds('p'),

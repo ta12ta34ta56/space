@@ -7,9 +7,14 @@
  * undoable, autosaved edit (architecture.md §2) — `ui-store.test.mjs` asserts
  * the two stores share no keys, so the split cannot silently erode.
  *
- * Holds: zoom, the current page, guide visibility, the bleed toggle (D9),
- * the active dock panel, and the selection. The selection is declared here
- * and stays empty until Unit 09 populates it.
+ * Holds: zoom, the current page, guide visibility, the active dock panel, and
+ * the selection. The selection is declared here and stays empty until Unit 09
+ * populates it.
+ *
+ * Bleed used to live here. It does not any more (Unit 07b, D25): a page set up
+ * for bleed is physically larger, so the exported PDF's page size depends on
+ * it, and the Document alone must be enough to export. It is `book.bleed` now,
+ * changed by the `book/setBleed` command.
  */
 
 import { create } from 'zustand';
@@ -36,10 +41,8 @@ export type UiStore = {
   readonly currentPageIndex: number;
   /** Per-guide visibility. Never in the Document (architecture.md §2). */
   readonly visibleGuides: Readonly<Record<GuideKind, boolean>>;
-  /** The book-level bleed toggle (D9). Lives in the editor, not in New Book. */
-  readonly bleedOn: boolean;
   readonly activePanel: PanelId | null;
-  /** Selected element ids. Declared here, populated in Unit 09. */
+  /** Selected element ids. The Layers tab (Unit 08) sets it; Unit 09 adds canvas selection. */
   readonly selection: readonly string[];
 
   readonly setZoom: (zoom: number) => void;
@@ -47,7 +50,8 @@ export type UiStore = {
   readonly zoomOut: () => void;
   readonly setCurrentPageIndex: (index: number) => void;
   readonly toggleGuide: (kind: GuideKind) => void;
-  readonly toggleBleed: () => void;
+  /** Replaces the selection. Selection is view state, never a document edit. */
+  readonly setSelection: (ids: readonly string[]) => void;
   readonly setActivePanel: (panel: PanelId | null) => void;
 };
 
@@ -67,7 +71,6 @@ export const useUiStore = create<UiStore>((set) => ({
     spine: true,
     barcode: true,
   },
-  bleedOn: false,
   activePanel: null,
   selection: [],
 
@@ -98,7 +101,7 @@ export const useUiStore = create<UiStore>((set) => ({
       visibleGuides: { ...s.visibleGuides, [kind]: !s.visibleGuides[kind] },
     })),
 
-  toggleBleed: () => set((s) => ({ bleedOn: !s.bleedOn })),
+  setSelection: (ids) => set({ selection: [...ids] }),
 
   setActivePanel: (panel) => set({ activePanel: panel }),
 }));

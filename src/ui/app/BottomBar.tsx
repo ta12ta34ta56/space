@@ -11,10 +11,14 @@
  * The page indicator reads "9 of 10" and opens jump-to-page when clicked
  * (D21). Bleed lives HERE, not in New Book (D9): at creation the user does
  * not yet know whether they want bleed; in the editor, with the page in
- * front of them, they do.
+ * front of them, they do. The toggle dispatches `book/setBleed` (Unit 07b,
+ * D25) — bleed is a property of the book, not of the view, and flipping it
+ * is one undo entry.
  */
 
 import { useRef, useState } from 'react';
+import { roundIn } from '../../model';
+import { BLEED_IN } from '../../print';
 import { store } from '../../state/store';
 import { useUiStore } from '../../state/ui-store';
 import { Button } from '../kit/Button';
@@ -35,8 +39,7 @@ export function BottomBar({ onFit }: BottomBarProps) {
   const setZoom = useUiStore((s) => s.setZoom);
   const currentPageIndex = useUiStore((s) => s.currentPageIndex);
   const setCurrentPageIndex = useUiStore((s) => s.setCurrentPageIndex);
-  const bleedOn = useUiStore((s) => s.bleedOn);
-  const toggleBleed = useUiStore((s) => s.toggleBleed);
+  const bleed = store((s) => s.doc.book.bleed);
 
   const [jump, setJump] = useState<string | null>(null);
   const jumpRef = useRef<HTMLInputElement | null>(null);
@@ -110,8 +113,14 @@ export function BottomBar({ onFit }: BottomBarProps) {
 
       <span className="bar-spacer" />
 
-      <Tooltip text="Bleed. Art meant to run off the page must extend 0.125 in past the trim line. Turning bleed on changes the page geometry, the guides and the export together.">
-        <Toggle label="Bleed" on={bleedOn} onToggle={toggleBleed} />
+      <Tooltip
+        text={`Bleed. Art meant to run off the page must extend ${roundIn(BLEED_IN)} in past the trim line. Turning bleed on makes the page physically larger, and changes the guides and the export with it.`}
+      >
+        <Toggle
+          label="Bleed"
+          on={bleed}
+          onToggle={() => store.getState().dispatch({ t: 'book/setBleed', bleed: !bleed }, Date.now())}
+        />
       </Tooltip>
     </footer>
   );

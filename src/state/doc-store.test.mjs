@@ -19,6 +19,7 @@ function makeDoc(pageCount = 4) {
     trimId: '6x9',
     paper: 'bw-white',
     binding: 'paperback',
+    bleed: false,
     pageCount,
     now: () => CREATED_AT,
     id: counterIds(),
@@ -132,6 +133,7 @@ console.log('\n=== every command gets a plain-language history label ===');
     [{ t: 'book/setTrim', trimId: '7x10' }, 'Change trim size'],
     [{ t: 'book/setPaper', paper: 'bw-cream' }, 'Change paper'],
     [{ t: 'book/setBinding', binding: 'paperback' }, 'Change binding'],
+    [{ t: 'book/setBleed', bleed: true }, 'Change bleed'],
     [{ t: 'book/setTitle', title: 'A' }, 'Rename book'],
     [{ t: 'cover/set', cover: { id: 'c', role: 'cover', elements: [], locked: false } }, 'Add cover'],
     [{ t: 'cover/clear' }, 'Remove cover'],
@@ -141,7 +143,7 @@ console.log('\n=== every command gets a plain-language history label ===');
     assert.equal(labelFor(cmd), expected, cmd.t);
     assert.equal(expected.includes('—'), false, 'no em dashes in user-facing copy');
   }
-  assert.equal(labels.length, 15, 'every command in the union is labelled');
+  assert.equal(labels.length, 16, 'every command in the union is labelled');
 }
 console.log('PASS labels');
 

@@ -104,6 +104,7 @@ export type Command =
   | { readonly t: 'book/setTrim'; readonly trimId: TrimId }
   | { readonly t: 'book/setPaper'; readonly paper: PaperStock }
   | { readonly t: 'book/setBinding'; readonly binding: Binding }
+  | { readonly t: 'book/setBleed'; readonly bleed: boolean }
   | { readonly t: 'book/setTitle'; readonly title: string }
   // cover
   | { readonly t: 'cover/set'; readonly cover: Cover }
@@ -335,6 +336,10 @@ export function apply(doc: Document, cmd: Command): Document {
 
     case 'book/setBinding':
       return { ...doc, book: { ...doc.book, binding: cmd.binding } };
+
+    // Bleed changes the physical page size (D25). One command, one undo entry.
+    case 'book/setBleed':
+      return { ...doc, book: { ...doc.book, bleed: cmd.bleed } };
 
     case 'book/setTitle': {
       if (cmd.title.length > MAX_TITLE_LENGTH) {

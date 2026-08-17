@@ -47,11 +47,21 @@ export type PaperStock = (typeof PAPER_STOCKS)[number];
 export const BINDINGS = ['paperback', 'hardcover'] as const;
 export type Binding = (typeof BINDINGS)[number];
 
-/** The physical object. Everything printable is derived from these three. */
+/**
+ * The physical object. Everything printable is derived from these four.
+ *
+ * `bleed` is a property of the BOOK, not of the view (D25, Unit 07b). A page
+ * set up for bleed is physically larger than its trim size, so the exported
+ * PDF's page size depends on this field: the Document alone must be enough to
+ * export (architecture.md §2 rule 4). It is the one exception to "derived
+ * print geometry is never stored" — the size itself is still derived, by
+ * `print/pageSizeIn`; what is stored is the user's intent.
+ */
 export type BookSettings = {
   readonly trimId: TrimId;
   readonly paper: PaperStock;
   readonly binding: Binding;
+  readonly bleed: boolean;
 };
 
 /* ----------------------------------------------------------------- pages -- */

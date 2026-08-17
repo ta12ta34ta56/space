@@ -75,6 +75,7 @@ const sampleBook = {
   trimId: '6x9',
   paper: 'bw-white',
   binding: 'paperback',
+  bleed: false,
 };
 
 const sampleElements = [

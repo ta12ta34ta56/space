@@ -12,6 +12,7 @@ export async function renderThumbnail(
   page: Page,
   book: BookSettings,
   maxPx = 480,
+  pageIndex = 0,
 ): Promise<string> {
-  return renderCanvasThumbnail(page, book, maxPx);
+  return renderCanvasThumbnail(page, book, maxPx, pageIndex);
 }

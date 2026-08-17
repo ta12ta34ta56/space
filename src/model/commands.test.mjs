@@ -484,19 +484,25 @@ console.log('PASS element/reorder');
 
 /* --------------------------------------------------------- book commands -- */
 
-console.log('\n=== book/setTrim, setPaper, setBinding, setTitle ===');
+console.log('\n=== book/setTrim, setPaper, setBinding, setBleed, setTitle ===');
 {
   const doc = makeDoc(2);
 
   const trimmed = apply(doc, { t: 'book/setTrim', trimId: '8.5x11' });
-  assert.deepEqual(trimmed.book, { trimId: '8.5x11', paper: 'bw-white', binding: 'paperback' });
-  assert.deepEqual(doc.book, { trimId: '6x9', paper: 'bw-white', binding: 'paperback' });
+  assert.deepEqual(trimmed.book, { trimId: '8.5x11', paper: 'bw-white', binding: 'paperback', bleed: false });
+  assert.deepEqual(doc.book, { trimId: '6x9', paper: 'bw-white', binding: 'paperback', bleed: false });
 
   const papered = apply(doc, { t: 'book/setPaper', paper: 'bw-cream' });
-  assert.deepEqual(papered.book, { trimId: '6x9', paper: 'bw-cream', binding: 'paperback' });
+  assert.deepEqual(papered.book, { trimId: '6x9', paper: 'bw-cream', binding: 'paperback', bleed: false });
 
   const bound = apply(doc, { t: 'book/setBinding', binding: 'hardcover' });
-  assert.deepEqual(bound.book, { trimId: '6x9', paper: 'bw-white', binding: 'hardcover' });
+  assert.deepEqual(bound.book, { trimId: '6x9', paper: 'bw-white', binding: 'hardcover', bleed: false });
+
+  // Bleed is a property of the book, not of the view (Unit 07b, D25).
+  const bled = apply(doc, { t: 'book/setBleed', bleed: true });
+  assert.deepEqual(bled.book, { trimId: '6x9', paper: 'bw-white', binding: 'paperback', bleed: true });
+  assert.equal(doc.book.bleed, false, 'the input is unchanged');
+  assert.equal(apply(bled, { t: 'book/setBleed', bleed: false }).book.bleed, false, 'and back again');
 
   const titled = apply(doc, { t: 'book/setTitle', title: 'Word Search Volume One' });
   assert.equal(titled.meta.title, 'Word Search Volume One');
@@ -560,11 +566,12 @@ console.log('\n=== every command in the union is covered ===');
     'book/setTrim',
     'book/setPaper',
     'book/setBinding',
+    'book/setBleed',
     'book/setTitle',
     'cover/set',
     'cover/clear',
   ];
-  assert.equal(covered.length, 15, 'the v1-so-far command union has 15 members');
+  assert.equal(covered.length, 16, 'the v1-so-far command union has 16 members');
   assert.equal(new Set(covered).size, covered.length, 'no duplicates');
 }
 console.log('PASS command coverage');
@@ -590,6 +597,7 @@ console.log('\n=== apply is pure: frozen input, no clock, no randomness ===');
     { t: 'book/setTrim', trimId: '7x10' },
     { t: 'book/setPaper', paper: 'color-premium' },
     { t: 'book/setBinding', binding: 'hardcover' },
+    { t: 'book/setBleed', bleed: true },
     { t: 'book/setTitle', title: 'A Book' },
     { t: 'cover/set', cover: coverSurface() },
     { t: 'cover/clear' },
@@ -740,6 +748,7 @@ console.log('\n=== a document survives a sequence of commands and a JSON round-t
     { t: 'book/setTitle', title: 'Puzzles for Long Evenings' },
     { t: 'book/setTrim', trimId: '7x10' },
     { t: 'book/setPaper', paper: 'bw-cream' },
+    { t: 'book/setBleed', bleed: true },
     { t: 'page/add', index: 3, page: blankPage('p-added', 'wordsearch') },
     { t: 'element/add', pageId: 'p-added', element: puzzleElement('el-puzzle') },
     { t: 'element/add', pageId: 'p-added', element: textElement('el-title') },

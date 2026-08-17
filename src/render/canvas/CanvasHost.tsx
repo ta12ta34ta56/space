@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Canvas } from 'fabric';
 import type { BookSettings, Page } from '../../model/types';
 import { inToPt, PT_PER_IN } from '../../model/units';
-import { TRIM_SIZE_IN } from '../../print/trims';
+import { pageSizeIn } from '../../print/page-size';
 import { store } from '../../state/store';
 import { renderPage } from './render-page';
 import { pixelScaleFor } from './resolution';
@@ -35,9 +35,9 @@ export function CanvasHost({
     if (el === null) return;
 
     const initialDoc = store.getState().doc;
-    const initialTrim = TRIM_SIZE_IN[initialDoc.book.trimId];
-    const baseW = inToPt(initialTrim.widthIn);
-    const baseH = inToPt(initialTrim.heightIn);
+    const initialSize = pageSizeIn(initialDoc.book, pageIndex);
+    const baseW = inToPt(initialSize.widthIn);
+    const baseH = inToPt(initialSize.heightIn);
     const cssW = Math.max(1, Math.round(baseW * zoom));
     const cssH = Math.max(1, Math.round(baseH * zoom));
     const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
@@ -70,6 +70,17 @@ export function CanvasHost({
       // Skip repaint if neither page reference nor book settings changed
       if (currentPage === lastPage && currentBook === lastBook) {
         return;
+      }
+
+      // Bleed changes the physical page size (Unit 07b), so the canvas box
+      // has to follow the book, not just the trim it was mounted with.
+      if (currentBook !== lastBook) {
+        const size = pageSizeIn(currentBook, pageIndex);
+        canvas.setDimensions({
+          width: Math.max(1, Math.round(inToPt(size.widthIn) * zoom)),
+          height: Math.max(1, Math.round(inToPt(size.heightIn) * zoom)),
+        });
+        canvas.setZoom(zoom);
       }
 
       lastPage = currentPage;

@@ -77,10 +77,24 @@ console.log('\n=== controls belonging to later units are absent, not greyed out 
     check(`"${word}" does not appear as a control`, !labels.includes(word) && !text.includes(word));
   }
 
-  // The right dock is reserved space only (Unit 07 fills it).
+  // Unit 06 reserved the right dock as empty space; Units 07 and 08 filled
+  // it with the ported Pages and Layers panels (D17). The assertion is
+  // deliberately updated rather than deleted: the dock must now be populated,
+  // and its tabs must be real navigation, not dead controls.
   const dock = doc.querySelector('.shell-dock');
-  check('the right dock exists as reserved space', dock !== null);
-  check('the right dock is empty', dock !== null && dock.children.length === 0);
+  check('the right dock exists', dock !== null);
+  check('the right dock is populated', dock !== null && dock.children.length > 0);
+
+  const tabs = [...doc.querySelectorAll('[role="tab"]')];
+  check('the dock shows its three tabs', tabs.length === 3, `found ${tabs.length}`);
+  check(
+    'the tabs are Pages, Layers and Inspector',
+    tabs.map((t) => (t.textContent ?? '').replace(/[0-9]+$/, '').trim()).join(',') ===
+      'Pages,Layers,Inspector',
+  );
+  check('exactly one tab is selected', tabs.filter((t) => t.getAttribute('aria-selected') === 'true').length === 1);
+  check('the selected tab has a panel', doc.querySelector('[role="tabpanel"]') !== null);
+  check('the Pages panel is what opens', doc.querySelector('.dockpages') !== null);
 }
 
 /* ------------------------------------- every control has an accessible name -- */

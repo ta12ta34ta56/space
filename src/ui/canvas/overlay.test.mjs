@@ -32,7 +32,8 @@ const check = (name, cond, detail = '') => {
 
 const shellCss = fs.readFileSync(path.resolve('src/ui/app/AppShell.css'), 'utf-8');
 
-const book = { trimId: '6x9', paper: 'bw-white', binding: 'paperback' };
+const book = { trimId: '6x9', paper: 'bw-white', binding: 'paperback', bleed: false };
+const bleedBook = { ...book, bleed: true };
 const allVisible = { bleed: true, trim: true, safe: true, gutter: true, spine: true, barcode: true };
 
 const renderStage = (overlayProps) => {
@@ -53,11 +54,10 @@ const renderStage = (overlayProps) => {
 console.log('=== guides render as DOM elements, not canvas objects ===');
 {
   const dom = renderStage({
-    book,
+    book: bleedBook,
     pageIndex: 0,
     pageCount: 100,
     surface: 'interior',
-    bleedOn: true,
     visibleGuides: allVisible,
     pxPerIn: 72,
   });
@@ -79,11 +79,10 @@ console.log('=== guides render as DOM elements, not canvas objects ===');
 console.log('\n=== every guide element has pointer-events: none ===');
 {
   const dom = renderStage({
-    book,
+    book: bleedBook,
     pageIndex: 1,
     pageCount: 100,
     surface: 'interior',
-    bleedOn: true,
     visibleGuides: allVisible,
     pxPerIn: 72,
   });
@@ -108,11 +107,10 @@ console.log('\n=== every guide element has pointer-events: none ===');
 console.log('\n=== a hidden guide renders nothing, not an invisible element ===');
 {
   const dom = renderStage({
-    book,
+    book: bleedBook,
     pageIndex: 0,
     pageCount: 100,
     surface: 'interior',
-    bleedOn: true,
     visibleGuides: { ...allVisible, safe: false, gutter: false },
     pxPerIn: 72,
   });
@@ -126,7 +124,6 @@ console.log('\n=== a hidden guide renders nothing, not an invisible element ==='
     pageIndex: 0,
     pageCount: 100,
     surface: 'interior',
-    bleedOn: false,
     visibleGuides: { bleed: false, trim: false, safe: false, gutter: false, spine: false, barcode: false },
     pxPerIn: 72,
   });
@@ -145,7 +142,6 @@ console.log('\n=== guides paint above page content in stacking order ===');
     pageIndex: 0,
     pageCount: 100,
     surface: 'interior',
-    bleedOn: false,
     visibleGuides: allVisible,
     pxPerIn: 72,
   });
@@ -182,7 +178,6 @@ console.log('\n=== the cover surface renders spine fold and barcode keep-out ===
     pageIndex: 0,
     pageCount: 200,
     surface: 'cover',
-    bleedOn: false,
     visibleGuides: allVisible,
     pxPerIn: 72,
   });

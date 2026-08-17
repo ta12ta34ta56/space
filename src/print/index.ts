@@ -2,7 +2,8 @@
  * The print layer — the numbers that know what Amazon will accept (Unit 03).
  *
  * Pure math, no rendering: the six trims and the one paper vocabulary
- * (`trims.ts`), the ported margins and safe area (`margins.ts`), the rebuilt
+ * (`trims.ts`), the ported margins and safe area (`margins.ts`), the one
+ * definition of how big a page is (`page-size.ts`), the rebuilt
  * cover geometry (`cover.ts`), the locked cover reference table
  * (`reference-table.ts`), and the guide rectangles the overlays draw
  * (`guides.ts`, Unit 06). This layer imports only `model/`.
@@ -34,6 +35,9 @@ export {
   safeAreaFor,
 } from './margins';
 export type { MarginIntent, MarginOptions, Margins, SafeArea } from './margins';
+
+export { PageSizeError, isRectoPage, pageSizeIn, trimOffsetIn } from './page-size';
+export type { PageSize } from './page-size';
 
 export {
   BARCODE_H_IN,

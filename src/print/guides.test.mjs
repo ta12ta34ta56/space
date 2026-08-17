@@ -1,27 +1,31 @@
 /**
- * Unit 06 — guide geometry (spec 06, guides.test.mjs).
+ * Unit 06 — guide geometry (spec 06, guides.test.mjs), updated for Unit 07b.
  *
  * Pure, no DOM. Proves:
  *  - every guide rect sits inside the page at all six trims
  *  - recto/verso: gutter is on the left for odd pages, right for even
- *  - bleed on/off changes the bleed rect and nothing else
+ *  - bleed adds a bleed guide and shifts the rest by the trim offset
  *  - cover guides include spine fold and barcode keep-out; interior never does
  *  - crossing a gutter band (150 -> 151 pages) moves the gutter guide
+ *
+ * The bleed geometry itself — paper size, trim inset, safe area measured from
+ * the trim line — is proved in `guides-bleed.test.mjs` (Unit 07b).
  */
 
 import assert from 'node:assert/strict';
 import {
-  BLEED_IN,
   GUIDE_KINDS,
   TRIM_IDS,
   TRIM_SIZE_IN,
   coverSpecFor,
   guidesFor,
   gutterInchesFor,
+  pageSizeIn,
+  trimOffsetIn,
 } from './print.built.mjs';
 
 const EPS = 1e-9;
-const book = (trimId) => ({ trimId, paper: 'bw-white', binding: 'paperback' });
+const book = (trimId, bleed = false) => ({ trimId, paper: 'bw-white', binding: 'paperback', bleed });
 
 const rectInside = (rect, box) =>
   rect.xIn >= box.xIn - EPS &&
@@ -33,26 +37,18 @@ const rectInside = (rect, box) =>
 
 console.log('=== every guide rect sits inside the page at all six trims ===');
 for (const trimId of TRIM_IDS) {
-  const size = TRIM_SIZE_IN[trimId];
   for (const pageIndex of [0, 1]) {
-    for (const bleedOn of [false, true]) {
-      // With bleed on, the page's drawable extent includes the bleed band on
-      // the top, bottom and outside edges; that extent is the outermost box.
-      const isRecto = (pageIndex + 1) % 2 === 1;
-      const box = bleedOn
-        ? {
-            xIn: isRecto ? 0 : -BLEED_IN,
-            yIn: -BLEED_IN,
-            wIn: size.widthIn + BLEED_IN,
-            hIn: size.heightIn + BLEED_IN * 2,
-          }
-        : { xIn: 0, yIn: 0, wIn: size.widthIn, hIn: size.heightIn };
+    for (const bleeds of [false, true]) {
+      // The paper IS the outermost box — with bleed on it is larger than the
+      // trim (Unit 07b). Nothing is ever drawn outside it.
+      const paper = pageSizeIn(book(trimId, bleeds), pageIndex);
+      const box = { xIn: 0, yIn: 0, wIn: paper.widthIn, hIn: paper.heightIn };
 
-      const guides = guidesFor(book(trimId), pageIndex, 100, { surface: 'interior', bleedOn });
+      const guides = guidesFor(book(trimId, bleeds), pageIndex, 100, { surface: 'interior' });
       for (const g of guides) {
         assert.ok(
           rectInside(g.rectIn, box),
-          `${trimId} p${pageIndex + 1} bleed=${bleedOn}: ${g.kind} inside the page`,
+          `${trimId} p${pageIndex + 1} bleed=${bleeds}: ${g.kind} inside the page`,
         );
         assert.ok(GUIDE_KINDS.includes(g.kind), `${trimId}: known kind ${g.kind}`);
       }
@@ -67,7 +63,7 @@ console.log('\n=== every cover guide rect sits inside the flat cover at all six 
 for (const trimId of TRIM_IDS) {
   const spec = coverSpecFor(trimId, 'bw-white', 200, 'paperback');
   const box = { xIn: 0, yIn: 0, wIn: spec.widthIn, hIn: spec.heightIn };
-  const guides = guidesFor(book(trimId), 0, 200, { surface: 'cover', bleedOn: false });
+  const guides = guidesFor(book(trimId), 0, 200, { surface: 'cover' });
   for (const g of guides) {
     assert.ok(rectInside(g.rectIn, box), `${trimId} cover: ${g.kind} inside the flat cover`);
   }
@@ -82,14 +78,14 @@ for (const trimId of TRIM_IDS) {
   const gutterIn = gutterInchesFor(100);
 
   // pageIndex 0 -> page 1, recto, gutter LEFT.
-  const recto = guidesFor(book(trimId), 0, 100, { surface: 'interior', bleedOn: false });
+  const recto = guidesFor(book(trimId), 0, 100, { surface: 'interior' });
   const rectoGutter = recto.find((g) => g.kind === 'gutter');
   assert.ok(rectoGutter, `${trimId}: recto has a gutter guide`);
   assert.equal(rectoGutter.rectIn.xIn, 0, `${trimId}: recto gutter starts at the left edge`);
   assert.ok(Math.abs(rectoGutter.rectIn.wIn - gutterIn) < EPS, `${trimId}: recto gutter width`);
 
   // pageIndex 1 -> page 2, verso, gutter RIGHT.
-  const verso = guidesFor(book(trimId), 1, 100, { surface: 'interior', bleedOn: false });
+  const verso = guidesFor(book(trimId), 1, 100, { surface: 'interior' });
   const versoGutter = verso.find((g) => g.kind === 'gutter');
   assert.ok(versoGutter, `${trimId}: verso has a gutter guide`);
   assert.ok(
@@ -110,30 +106,42 @@ console.log('PASS recto/verso gutter placement');
 
 /* ------------------------------- bleed toggles the bleed rect and only it -- */
 
-console.log('\n=== bleed on/off changes the bleed rect and nothing else ===');
+console.log('\n=== bleed adds a bleed rect and shifts the rest by the trim offset ===');
 for (const trimId of TRIM_IDS) {
   for (const pageIndex of [0, 1]) {
-    const off = guidesFor(book(trimId), pageIndex, 100, { surface: 'interior', bleedOn: false });
-    const on = guidesFor(book(trimId), pageIndex, 100, { surface: 'interior', bleedOn: true });
+    const off = guidesFor(book(trimId, false), pageIndex, 100, { surface: 'interior' });
+    const on = guidesFor(book(trimId, true), pageIndex, 100, { surface: 'interior' });
 
     assert.equal(off.filter((g) => g.kind === 'bleed').length, 0, `${trimId}: no bleed guide when off`);
     assert.equal(on.filter((g) => g.kind === 'bleed').length, 1, `${trimId}: one bleed guide when on`);
 
-    // Every non-bleed guide is identical with bleed on and off. (KDP's outer
+    // The origin moves to the paper's top-left, which with bleed on is the
+    // bleed edge (Unit 07b, D25). Every other guide keeps its size and its
+    // trim-relative position, and moves by exactly that offset — KDP's outer
     // margin with bleed equals Novelka's safe default, so the safe area does
-    // not move — margins.ts, OUTER_MARGIN_SAFE_IN.)
+    // not change shape (margins.ts, OUTER_MARGIN_SAFE_IN).
+    const offset = trimOffsetIn(book(trimId, true), pageIndex);
     const offRest = off.filter((g) => g.kind !== 'bleed');
     const onRest = on.filter((g) => g.kind !== 'bleed');
-    assert.deepEqual(onRest, offRest, `${trimId} p${pageIndex + 1}: only the bleed rect changed`);
+    assert.equal(onRest.length, offRest.length, `${trimId}: the same guides exist either way`);
+    onRest.forEach((g, index) => {
+      const was = offRest[index];
+      assert.equal(g.kind, was.kind, `${trimId}: guide order is unchanged`);
+      assert.equal(g.label, was.label, `${trimId}: ${g.kind} label is unchanged`);
+      assert.ok(Math.abs(g.rectIn.xIn - (was.rectIn.xIn + offset.xIn)) < EPS, `${trimId}: ${g.kind} x shifted`);
+      assert.ok(Math.abs(g.rectIn.yIn - (was.rectIn.yIn + offset.yIn)) < EPS, `${trimId}: ${g.kind} y shifted`);
+      assert.ok(Math.abs(g.rectIn.wIn - was.rectIn.wIn) < EPS, `${trimId}: ${g.kind} width unchanged`);
+      assert.ok(Math.abs(g.rectIn.hIn - was.rectIn.hIn) < EPS, `${trimId}: ${g.kind} height unchanged`);
+    });
   }
 }
-console.log('PASS bleed toggles only the bleed rect');
+console.log('PASS bleed adds the bleed rect and shifts the rest');
 
 /* ------------------------------- cover has spine + barcode, interior never -- */
 
 console.log('\n=== cover guides include spine fold and barcode keep-out; interior includes neither ===');
 for (const trimId of TRIM_IDS) {
-  const cover = guidesFor(book(trimId), 0, 200, { surface: 'cover', bleedOn: false });
+  const cover = guidesFor(book(trimId), 0, 200, { surface: 'cover' });
   const kinds = cover.map((g) => g.kind);
   assert.ok(kinds.includes('spine'), `${trimId}: cover has a spine fold guide`);
   assert.ok(kinds.includes('barcode'), `${trimId}: cover has a barcode keep-out guide`);
@@ -148,8 +156,8 @@ for (const trimId of TRIM_IDS) {
   assert.ok(Math.abs(spine.rectIn.wIn - spec.spineIn) < EPS, `${trimId}: spine width`);
 
   for (const pageIndex of [0, 1]) {
-    for (const bleedOn of [false, true]) {
-      const interior = guidesFor(book(trimId), pageIndex, 100, { surface: 'interior', bleedOn });
+    for (const bleeds of [false, true]) {
+      const interior = guidesFor(book(trimId, bleeds), pageIndex, 100, { surface: 'interior' });
       const interiorKinds = interior.map((g) => g.kind);
       assert.ok(!interiorKinds.includes('spine'), `${trimId}: interior has no spine guide`);
       assert.ok(!interiorKinds.includes('barcode'), `${trimId}: interior has no barcode guide`);
@@ -162,8 +170,8 @@ console.log('PASS spine and barcode are cover-only');
 
 console.log('\n=== crossing a gutter band (150 -> 151 pages) moves the gutter guide ===');
 {
-  const at150 = guidesFor(book('6x9'), 0, 150, { surface: 'interior', bleedOn: false });
-  const at151 = guidesFor(book('6x9'), 0, 151, { surface: 'interior', bleedOn: false });
+  const at150 = guidesFor(book('6x9'), 0, 150, { surface: 'interior' });
+  const at151 = guidesFor(book('6x9'), 0, 151, { surface: 'interior' });
   const g150 = at150.find((g) => g.kind === 'gutter');
   const g151 = at151.find((g) => g.kind === 'gutter');
   assert.ok(Math.abs(g150.rectIn.wIn - 0.375) < EPS, '150 pages: gutter is 0.375 in');
@@ -181,8 +189,8 @@ console.log('PASS gutter band crossing moves the guide');
 console.log('\n=== every numeric label carries a unit ===');
 {
   const all = [
-    ...guidesFor(book('6x9'), 0, 100, { surface: 'interior', bleedOn: true }),
-    ...guidesFor(book('6x9'), 0, 100, { surface: 'cover', bleedOn: false }),
+    ...guidesFor(book('6x9', true), 0, 100, { surface: 'interior' }),
+    ...guidesFor(book('6x9'), 0, 100, { surface: 'cover' }),
   ];
   for (const g of all) {
     assert.equal(typeof g.label, 'string');
@@ -200,17 +208,17 @@ console.log('PASS labels carry units');
 console.log('\n=== impossible requests are refused, not guessed ===');
 {
   assert.throws(
-    () => guidesFor(book('6x9'), 5, 3, { surface: 'interior', bleedOn: false }),
+    () => guidesFor(book('6x9'), 5, 3, { surface: 'interior' }),
     (e) => e.name === 'GuideError',
     'page index outside the book is refused',
   );
   assert.throws(
-    () => guidesFor(book('6x9'), -1, 10, { surface: 'interior', bleedOn: false }),
+    () => guidesFor(book('6x9'), -1, 10, { surface: 'interior' }),
     (e) => e.name === 'GuideError',
     'negative page index is refused',
   );
   assert.throws(
-    () => guidesFor({ trimId: '6x9', paper: 'bw-white', binding: 'hardcover' }, 0, 100, { surface: 'cover', bleedOn: false }),
+    () => guidesFor({ trimId: '6x9', paper: 'bw-white', binding: 'hardcover', bleed: false }, 0, 100, { surface: 'cover' }),
     (e) => e.name === 'UnsupportedBindingError',
     'hardcover cover guides are refused by Unit 03, passed through',
   );

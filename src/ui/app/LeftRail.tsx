@@ -18,6 +18,9 @@
  * cover surface in Unit 10.
  */
 
+import { roundIn } from '../../model';
+import { BLEED_IN } from '../../print';
+import { store } from '../../state/store';
 import { useUiStore } from '../../state/ui-store';
 import { Icon, type IconName } from '../kit/Icon';
 import { Tooltip } from '../kit/Tooltip';
@@ -34,7 +37,7 @@ type RailToggle = {
 
 export function LeftRail() {
   const visibleGuides = useUiStore((s) => s.visibleGuides);
-  const bleedOn = useUiStore((s) => s.bleedOn);
+  const bleed = store((s) => s.doc.book.bleed);
   const toggleGuide = useUiStore((s) => s.toggleGuide);
 
   const toggles: readonly RailToggle[] = [
@@ -68,7 +71,7 @@ export function LeftRail() {
     // The bleed guide is only toggleable while bleed exists (D9): while the
     // book has no bleed there is no bleed guide, and a toggle over nothing
     // would be a dead control.
-    ...(bleedOn
+    ...(bleed
       ? [
           {
             id: 'bleed',
@@ -77,7 +80,7 @@ export function LeftRail() {
             on: visibleGuides.bleed,
             toggle: () => toggleGuide('bleed'),
             ariaLabel: 'Show or hide the bleed guide',
-            tip: 'Bleed. Art meant to run off the page must extend 0.125 in past the trim line, or the cut can leave a white sliver at the edge.',
+            tip: `Bleed. Art meant to run off the page must extend ${roundIn(BLEED_IN)} in past the trim line, or the cut can leave a white sliver at the edge.`,
           } satisfies RailToggle,
         ]
       : []),

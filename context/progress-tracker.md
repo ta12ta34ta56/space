@@ -3,17 +3,19 @@
 > Update this file after every meaningful implementation change.
 > It is how the next session recovers full context in one prompt.
 
-**Last updated:** 17 August 2026 — Unit 06 complete
+**Last updated:** 17 August 2026 — Units 07b, 07 and 08 complete
 
 ---
 
 ## Current Phase
 
-**Phase B — Making it visible.** Units 01 through 06 are complete. The Document exists,
+**Phase B — Making it visible.** Units 01 through 08 are complete (07b included). The Document exists,
 it is changeable in exactly one way (dispatch a Command), the KDP numbers it is derived
 against are locked and tested, persistence and autosave are proven, the canvas renderer
-proves the one-way Document → pixels architecture, and the editor shell now frames the
-page with the six print guide overlays drawn as DOM above the canvas.
+proves the one-way Document → pixels architecture, the editor shell frames the page with
+the six print guide overlays drawn as DOM above the canvas, bleed now changes the physical
+page size as it does in print, and the right dock carries the ported Pages and Layers
+panels reading the Document and dispatching Commands.
 
 The previous build now lives in `legacy/novelka/` and is the **reference implementation** —
 the source of ported logic. It is not the thing being extended, it is not linted, and it
@@ -23,15 +25,206 @@ is not built.
 
 ## Current Goal
 
-**Unit 07 — Right dock: Pages (ported design, D17).** The Pages tab reproduced exactly:
-thumbnails, subtle insert gutters, warning dot, selected state, drag-reorder with
-drop-line, duplicate, delete. IntersectionObserver + rAF-throttled live thumbnails.
-Reads the Document, dispatches Commands. Done when it is indistinguishable from the
-original, except it cannot desync.
+**Unit 09 — Selection and the Inspector.** The dock's Inspector tab exists and says so
+plainly; Unit 09 fills it, and adds canvas selection, nudge, resize and recolour. The
+ui-store already carries `selection`, and the Layers tab already writes to it.
 
 ---
 
 ## Completed
+
+### Unit 08 — Right dock: the Layers tab *(17 August 2026)*
+
+Built against `context/specs/08-layers-dock.md`. Ported under D17, with D18 fixed while
+porting: **every element kind keeps its own identity, and a divider says "Divider".**
+
+**`src/ui/panels/layer-rows.ts`** — pure. `layerRowsFor(page)` returns one row per
+element in `z` order, front-most first, with ties broken by document order so the list
+never shuffles between renders. `KIND_META` is the legacy six-entry map extended to
+**eleven**, each with its own icon, its own `lk-` class and its own word: Divider,
+Border, Pattern, Sticker, Icon join Puzzle, Solution, Template, Text, Image, Shape. The
+six legacy entries keep their exact legacy icon, class and label. `zForMove(rows, from,
+to)` turns a list move into the single new `z` that `element/reorder` carries.
+
+**What was deleted rather than ported.** `kindOf`, `isSolutionish`, `isPuzzleish` and
+`labelFor`'s guessing branches: `kind` is stored at insertion (D18, invariant 8), so the
+row is one property access. `unitKeyOf`, `moduleLabelOf`, `memberIds` and the whole
+clustering mechanism: a puzzle is already one element and therefore one row (D3), so
+there is nothing to cluster. `useLayerTree`'s five engine listeners **and its 900 ms
+`setInterval`**: the poll existed because events were missed, and Unit 02's structural
+sharing says exactly when the Document changed.
+
+**`src/ui/panels/LayersTab.tsx`** — the legacy markup, class for class: `.docklayers`,
+`.docklayers-order`, `.docklayers-hint`, `.docklayer` (`.active`, `.child`,
+`.move-mode`), `.docklayer-chevron`, `.docklayer-type`, `.docklayer-name`,
+`.docklayer-count`, `.docklayer-actions`, `.docklayer-children`, and the shared
+`.dockpage-dropline`. Visibility and lock each dispatch one `element/update`; delete
+dispatches `element/delete`; reorder dispatches one `element/reorder` on release, one
+undo entry, with the arrow keys as the keyboard equivalent. **Selection goes to
+`ui-store` only** (`setSelection`, added this unit) — clicking a layer must never become
+an undoable, autosaved change (architecture §2). A locked row shows its lock and refuses
+both reorder and selection.
+
+**Tests** — `layer-rows.test.mjs` (pure: one row per element front-most first; a puzzle
+is exactly one row; all eleven kinds asserted individually with no fallback and no shared
+label, icon or class; the six legacy entries asserted verbatim; `zForMove` boundaries;
+and a source-level audit that no function anywhere in `src/` infers a kind from `type`,
+size or object count), `layers-dock.test.mjs` (jsdom with real events: visibility, lock,
+delete, one-command reorder plus one-undo restore, selection leaves `doc`/`past`/`future`
+untouched by reference, a locked row refuses to move).
+
+### Unit 07 — Right dock: the Pages tab *(17 August 2026)*
+
+Built against `context/specs/07-pages-dock.md.md`. A translation, not a redesign (D17).
+Same markup, same class names, same interactions; only the colours are retokenised to
+D23 and only the data source changed.
+
+**`src/ui/panels/PagesTab.tsx`** — the ported panel. `.dockpages` rows with
+`.dockpage-thumb` (real page aspect ratio from `pageSizeIn`, opaque white ground),
+`.dockpage-dot`, `.dockpage-tools` (duplicate, delete), `.dockpage-label` >
+`.dockpage-name` + `.dockpage-side` ("Odd"/"Even"), the `.dockpage-insert` hover gutters,
+the `.dockpage-dropline`, the `.dockpage-add` footer link, the cover row with its spine
+width, and the `.active` accent bar. Click opens, double-click grabs, arrow keys move.
+
+**Thumbnails.** Unit 05's `renderThumbnail` is the one rendering path; the panel defines
+no second one and never touches Fabric or `toDataURL`. `IntersectionObserver` (240 px
+root margin) means only on-screen rows render, so a 200-page book stays smooth. Renders
+are rAF-throttled. **The invalidation signal changed and is strictly better:** the legacy
+effect listened for engine `modified`/`history` events and could miss one; this compares
+Page object references, so Unit 02's structural sharing makes a stale thumbnail
+impossible rather than unlikely. `thumbnail-cache.ts` holds that rule as a pure function.
+
+**`src/ui/panels/page-actions.ts`** — pure. Each action returns either the Command to
+dispatch or a refusal with a reason. **Deleting below KDP's 24-page minimum is refused
+and explained** ("Amazon will not print an interior with fewer than 24 pages, and this
+book has 24. Add a page before deleting this one."), rendered in place rather than
+silently doing nothing.
+
+**`src/ui/panels/pages-rows.ts`** — page names, recto/verso markers, and the cover spine
+label from `coverSpecFor`. An unavailable trim x paper, a page count outside KDP's limits,
+or hardcover (D24.4) yields **no label** rather than an approximate number.
+
+**`src/ui/panels/useGrabReorder.ts`** — the ported grab-reorder hook (D21: not HTML5
+drag-and-drop, not canvas dragging). Double-click grabs, drop-line follows the pointer,
+edge auto-scroll, Escape cancels, release commits **one** Command. One correction: the
+legacy hook fed a raw insertion index into a splice-move, which lands a row one place
+short whenever it moves down the list; the index is now converted to a move target so the
+result matches the line the user was aiming at.
+
+**`src/ui/panels/RightDock.tsx`** — the 280px column Unit 06 reserved, with Pages /
+Layers / Inspector tabs (`ui-context` §7: tabs, not accordions). Tabs are navigation, not
+dead controls. The Inspector panel says plainly that it arrives with element editing. The
+legacy edge-rail shell with its slide-open behaviour was deliberately not ported: Unit 06
+fixed the column, and D17 protects what is *inside* the panels.
+
+**Tests** — `pages-dock.test.mjs` (jsdom, 52 checks: one row per page in order; selection
+updates `ui-store` and leaves `doc`/`past`/`future` untouched by reference; reorder is
+exactly one `page/reorder` and one undo restores it; duplicate and delete carry the right
+ids; an insert gutter adds at the right index; deleting below 24 is refused with the
+Document unchanged; the severity dot renders when supplied and **nothing** when not; the
+cover row's spine matches `coverSpecFor`), `thumbnail-ground.test.mjs` (22 checks: the
+D17 white-ground fix is asserted at its decision point, the offscreen canvas is disposed,
+an unchanged page reuses the cache, only the edited page re-renders, a 200-page book
+renders only its on-screen rows), `page-actions.test.mjs` (pure, **audited at all six
+trims and every paper stock**: spine labels match `coverSpecFor`, unavailable combinations
+and out-of-range counts and hardcover all yield no label, actions never mutate the
+Document), and `dock-parity.test.mjs` — **the D17 guard, 148 checks.** It reads the legacy
+component and CSS and asserts every legacy class name and every legacy `aria-label` is
+present in the new panels, then renders both panels and re-checks the same list against
+the real DOM. "Did the port stay faithful?" is now a build failure, not an opinion.
+
+`no-dead-controls.test.mjs` was deliberately **updated, not deleted**: it now asserts the
+dock is populated, shows three real tabs, has exactly one selected, and opens on Pages.
+
+### Unit 07b — Bleed changes the page size *(17 August 2026)*
+
+Built against `context/specs/07b-bleed-page-size-fix.md`. A defect fix with a schema
+change, run before Unit 07 as the spec allows. The owner found it in the Unit 06 shell:
+with bleed on at 6 x 9 the paper was still 6 x 9, the red bleed guide floated **outside**
+the paper on the grey, and the trim guide sat on the paper's edge. All three were the
+same wrong thing.
+
+**`bleed` moved into the Document.** `BookSettings` gained `readonly bleed: boolean`, with
+the command `{ t: 'book/setBleed'; bleed: boolean }` (one undo entry, labelled "Change
+bleed") and **schema migration v2 → v3** defaulting every existing book to `bleed: false`.
+This is the first migration that does real work; the no-op v1 → v2 from Unit 04 was the
+rehearsal for exactly this. `bleedOn` and `toggleBleed` are gone from `ui-store`: the
+exported PDF's page size depends on bleed, and the Document alone must be enough to
+export (architecture §2 rule 4). **Closes open question 9.**
+
+**`src/print/page-size.ts`** — one definition of how big a page is, read by the renderer,
+the thumbnails, the guides, the stage and (later) preflight and export. Bleed off is the
+trim; bleed on is `trimW + 0.125` by `trimH + 0.25`. **Width grows once, not twice**: the
+gutter edge is bound into the spine and is never trimmed. `trimOffsetIn` answers which
+side grows — on a recto the gutter is on the left, so the paper grows right and the trim
+line starts at x = 0; on a verso it is mirrored.
+
+**Guides follow.** The origin is the paper's top-left, which with bleed on is the bleed
+edge. The bleed guide **is** the paper edge, never outside it; the trim guide is inset
+0.125 in on outer/top/bottom and flush at the gutter; the safe area is measured from the
+trim line. `safeAreaFor`'s values are unchanged — only where the page origin sits moved —
+so the legacy-parity assertions in `margins.test.mjs` still hold.
+
+**Tests** — `page-size.test.mjs` (bleed off equals trim at all six trims; 6 x 9 with bleed
+is exactly 6.125 x 9.25; width grows once with an explicit assertion that it is *not*
+twice; recto and verso grow on opposite sides; bad page indices refused),
+`guides-bleed.test.mjs` (**the screenshot regression**: with bleed on, every guide rect is
+inside the paper at all six trims on recto and verso; the trim inset; the safe area
+measured from trim; with bleed off, trim and paper coincide), and `migrate.test.mjs`
+extended (chain steps advance one version each; v2 → v3 adds `bleed: false`; a v3 document
+round-trips unchanged with bleed either way; `book/setBleed` is one undo entry and one
+page-size change).
+
+**Verified in the running app:** toggling Bleed at 6 x 9 grows the white paper from
+432 x 648 px to 441 x 666 px, the trim guide moves inside it, and no guide is drawn
+outside the paper.
+
+### Verification for Units 07b, 07 and 08
+
+**All run, all green.** `npm run check`: lint **0 errors, 0 warnings** · `tsc -b` clean ·
+**24/24 suites** pass · `vite build` passes. Dev server runs with **no console errors**
+(checked by mounting the whole `AppShell`, toggling bleed, and switching all three tabs
+with `console.error` captured: zero).
+
+Spec verification greps, each run:
+
+| Check | Result |
+|---|---|
+| `grep -rn "bleedOn" src/` | empty — bleed lives in the Document |
+| `grep -rn "0.125" src/ui/` | empty — bleed math lives in `print/` |
+| `grep -rn "engine\.\|canvas-store" src/ui/` | empty |
+| `grep -rn "#4f46e5\|#6366f1" src/` | empty — the old indigo is gone |
+| `grep -rn "draggable=" src/` | empty (D21) |
+| `grep -rn "setInterval" src/ui/` | empty |
+| `grep -rn "isSolutionish\|isPuzzleish\|kindOf\|unitKeyOf" src/` | empty |
+
+Manual, end to end: a 200-page book scrolls smoothly and off-screen rows are not rendered
+(asserted in `thumbnail-ground.test.mjs` as well); a background-less page's thumbnail is
+white, not black; reorder produces **one** undo entry and one Ctrl+Z restores the order;
+all eleven layer kinds render distinctly and a divider says "Divider"; toggling bleed
+visibly grows the paper.
+
+**Invariants checked explicitly** (`architecture.md` §10, walked one by one). Applicable
+and held: **1** (the panels read the Document; nothing is stored in Fabric or the panel
+that the Document does not have — thumbnails are a cache keyed by Page reference, and a
+cache is not a second truth), **2** (gestures become Commands; nothing flows render →
+Document), **3** (`apply` stays pure; `book/setBleed` adds no clock or randomness, and
+the panels inject `now` and `newId` rather than reading them), **4** (all Document
+geometry stays in inches; `pageSizeIn` returns inches and the only conversions are
+`inToPt`/`inToPx` at the render boundary), **5** (guides are still DOM overlays, never in
+`elements`, and thumbnails render pages without them), **6** (the cover is still isolated
+in `document.cover`; the Pages tab shows it as a separate row that is not numbered with
+the interior, and `pageSizeIn` is interior-only — cover bleed remains `coverSpecFor`'s
+job), **7** (no new KDP math: `page-size.ts` composes `TRIM_SIZE_IN` and `BLEED_IN`, and
+`margins.test.mjs`'s legacy-parity assertions still pass unchanged), **8** (`kind` is read,
+never inferred — enforced by a source-level audit in `layer-rows.test.mjs`), **10** (only
+the six trims; every new layout test is audited at all six), **11** (panels
+drag-**reorder** only; no free-form canvas dragging, and `draggable=` appears nowhere),
+**13** (no dead controls — the Inspector tab leads to a panel that exists and explains
+itself; the legacy "Duplicate layer" button is absent rather than dead), **14** (zero
+`any`, zero `@ts-ignore`, zero `!`), **15** (`ui/panels/` imports `model/`, `print/`,
+`render/` and `state/`, nothing sideways or up; Fabric is still confined to
+`render/canvas/`, enforced by `fabric-boundary.test.mjs`), **16** (no backend).
 
 ### Unit 06 — Editor shell and print guides *(17 August 2026)*
 
@@ -600,17 +793,16 @@ the new standards.
 
 ## In Progress
 
-- Nothing. Unit 06 is finished and verified; Unit 07 has not started.
+- Nothing. Units 07b, 07 and 08 are finished and verified; Unit 09 has not started.
 
 ---
 
 ## Next Up
 
-**Unit 07 — Right dock: Pages** *(ported design, D17)*. The Pages tab reproduced exactly:
-thumbnails, subtle insert gutters, warning dot, selected state, drag-reorder with
-drop-line, duplicate, delete. IntersectionObserver + rAF-throttled live thumbnails.
-Reads the Document, dispatches Commands. Done when it is indistinguishable from the
-original, except it cannot desync.
+**Unit 09 — Selection, nudge, resize, the Inspector.** The dock's Inspector tab is
+rendered and honest about being empty; Unit 09 gives it per-kind controls. Rulers, grid,
+snap and smart guides also belong to Unit 09 and are still absent from the left rail
+rather than greyed out.
 
 The full ordered plan is `context/specs/00-build-plan.md` — 23 units in five phases.
 Checkpoints: Unit 05 proved the architecture, Unit 11 is the first shippable book.
@@ -650,14 +842,10 @@ Checkpoints: Unit 05 proved the architecture, Unit 11 is the first shippable boo
    `renderThumbnail` implemented in `src/render/thumbnail.ts` and `StoredProject` /
    `storage.save` support `thumbnail`.
 
-9. **Where `bleedOn` lives long-term** (Unit 06). Spec 06 puts the bleed toggle in
-   `ui-store`, and it is there. But D9 says turning bleed on "changes page geometry,
-   guides, and export together" — export (Unit 11) is derived from the Document alone
-   (architecture §2 rule 4: "the Document alone is enough to render, preflight, and
-   export"). If bleed must affect export, it is a fact about the book, not about the
-   view, and belongs in `BookSettings` with a `book/setBleed` command and a schema
-   migration. Nothing breaks today; flagging it so Unit 11 resolves it deliberately
-   instead of discovering it.
+9. ~~**Where `bleedOn` lives long-term.**~~ **Resolved by Unit 07b.** It was exactly the
+   problem this question predicted. `bleed` is now `BookSettings.bleed`, changed by
+   `book/setBleed`, with a v2 → v3 migration defaulting existing books to off. `bleedOn`
+   and `toggleBleed` are gone from `ui-store`.
 10. **The spec's D15 grep is loose** (Unit 06). `grep -rni "inter\b" src/` matches the
    trailing "inter" in "pointer" and "printer" (for example `pointer-events`, which the
    guide overlays require). The intent — no Inter/Geist/Space Grotesk font — is
@@ -667,6 +855,39 @@ Checkpoints: Unit 05 proved the architecture, Unit 11 is the first shippable boo
    interior pages until Unit 10 builds the cover surface, and a toggle over a guide
    that cannot currently render would be a dead control. Their toggles ship with the
    cover surface in Unit 10.
+
+12. **`context/decisions.md` does not contain the decisions.** The file currently holds a
+   duplicate of the reading-order document: there is no D1–D24 text in it, and no D25 at
+   all, even though specs 07, 07b and 08 all open by telling the implementer to read
+   specific decisions from it (07 says to read D17 "twice"). Units 07b, 07 and 08 were
+   built against the **D1–D24 summary table in this file** plus `context/owner-review.md`,
+   with **spec 07b's own body treated as the authoritative statement of D25** — the owner
+   confirmed that approach and declined a reconstruction. The full reasoning behind every
+   decision is still missing and only the owner can restore it. Flagged loudly because
+   every future unit's spec points at this file.
+
+13. **Spec 08 names a class that never existed: `.layerrow`.** Its parity test asks for
+   `.layerrow`, `.lk-puzzle`, `.lk-text` and so on. `grep -rn "layerrow" legacy/` returns
+   **nothing**; the real legacy row class is `.docklayer`, with `.docklayer-name`,
+   `.docklayer-type`, `.docklayer-count`, `.docklayer-actions` and `.docklayer-children`.
+   Under D17 the shipped legacy markup is the source of truth, so the port uses
+   `.docklayer` and `dock-parity.test.mjs` asserts against it — including an assertion
+   that `.layerrow` genuinely does not exist in the legacy build, so if that is ever
+   wrong the test says so. Treated as a spec typo, confirmed with the owner.
+
+14. **The legacy "Duplicate layer" button is not ported** (Unit 08). Spec 08's control
+   table lists visibility, lock, delete, reorder and select, and every one of those
+   ships. The legacy row also had a duplicate button, which the spec does not mention;
+   duplicating an element needs a freshly generated element id and a per-type copy, which
+   is element editing and therefore Unit 09. It is **absent rather than dead** (honesty
+   rule 3), and `dock-parity.test.mjs` skips exactly that one label with a comment saying
+   why. Restoring it in Unit 09 is a small addition.
+
+15. **The Pages tab's `renderThumbnail` call passes a page index** (Unit 07b + 07).
+   `renderThumbnail(page, book, maxPx, pageIndex)` grew a fourth argument so the
+   thumbnail can ask `pageSizeIn` for the right paper size on a bleeding book, where
+   recto and verso differ in which side grew. The argument defaults to 0, so every
+   existing caller is unchanged. Worth knowing when Unit 11 renders export previews.
 
 Everything else was resolved on 17 August 2026 (D24). The owner decided History (keep),
 PDF import (cut) and fonts (keep); the remaining calls were delegated to the agent and are
@@ -702,6 +923,7 @@ Full reasoning in `context/decisions.md`. Summary:
 | D22 | Template previews render true-to-print, with variants | Early templates preview as abstract shapes, not real pages |
 | D23 | Dark only, with a neutral grey paper surround | Simultaneous contrast: white paper on near-black misleads print judgement |
 | D24 | Remaining questions decided: history keep, import cut, 5 font families, paperback only, quick-create makes a complete interior | Owner delegated; all reversible |
+| D25 | **Bleed is a property of the book, and a bleeding page is physically larger than its trim** | The exported PDF's page size depends on it, so the Document alone must carry it; a trim-sized paper teaches the user that art will print edge to edge when it will not. Stated in full in `context/specs/07b-bleed-page-size-fix.md`, which stands in for the missing `decisions.md` entry (open question 12) |
 
 ---
 
@@ -720,4 +942,13 @@ Full reasoning in `context/decisions.md`. Summary:
   type-checked and not built by anything at the root. Its dependencies must be installed
   in both `legacy/novelka/` and `legacy/novelka/server/` if it is ever run again.
 - The six-file system plus `decisions.md` and `inventory.md` is the complete context. The
-  entry point is `AGENTS.md` at the repository root.
+  entry point is `AGENTS.md` at the repository root. **Two caveats for the next session:**
+  `AGENTS.md`'s status section is stale (it claims Units 01–03 are done; the real state is
+  this file), and `context/decisions.md` currently holds the wrong content entirely — see
+  open question 12.
+- **The dock tests run against one code-split bundle**, `.test-build/`, built by
+  `npm run test:dock-bundle` and gitignored. Bundling each entry point separately would
+  give the panel under test a *different copy* of the module-level `store` singleton than
+  the assertions read, and every reference check would pass for the wrong reason.
+  `test/helpers/react-dom-harness.mjs` mounts them into jsdom with `createRoot` and drives
+  real events through `act`, so behaviour is tested rather than markup.

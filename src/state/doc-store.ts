@@ -87,6 +87,7 @@ const COMMAND_LABELS: Readonly<Record<CommandName, string>> = {
   'book/setTrim': 'Change trim size',
   'book/setPaper': 'Change paper',
   'book/setBinding': 'Change binding',
+  'book/setBleed': 'Change bleed',
   'book/setTitle': 'Rename book',
   'cover/set': 'Add cover',
   'cover/clear': 'Remove cover',

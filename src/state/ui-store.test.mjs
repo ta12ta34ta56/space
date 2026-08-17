@@ -19,6 +19,7 @@ const doc = createDocument({
   trimId: '6x9',
   paper: 'bw-white',
   binding: 'paperback',
+  bleed: false,
   pageCount: 4,
   now: () => 1000,
   id,
@@ -38,7 +39,7 @@ console.log('=== ui state and Document state share no keys ===');
   assert.deepEqual(overlap, [], `ui-store and Document share keys: ${overlap.join(', ')}`);
 
   // The spec names these three explicitly.
-  for (const key of ['zoom', 'visibleGuides', 'selection', 'bleedOn', 'currentPageIndex', 'activePanel']) {
+  for (const key of ['zoom', 'visibleGuides', 'selection', 'currentPageIndex', 'activePanel']) {
     assert.ok(uiKeys.includes(key), `${key} is in ui-store`);
     assert.ok(!docKeys.includes(key), `${key} is not in the Document`);
   }
@@ -65,7 +66,6 @@ console.log('\n=== toggling a guide does not touch doc, past or future ===');
   for (const kind of GUIDE_KINDS) {
     useUiStore.getState().toggleGuide(kind);
   }
-  useUiStore.getState().toggleBleed();
   useUiStore.getState().setZoom(1.5);
   useUiStore.getState().setCurrentPageIndex(2);
 

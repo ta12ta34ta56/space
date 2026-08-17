@@ -244,6 +244,7 @@ function parseBook(value: unknown, path: string): BookSettings {
     trimId: asMember(record['trimId'], TRIM_IDS, `${path}.trimId`),
     paper: asMember(record['paper'], PAPER_STOCKS, `${path}.paper`),
     binding: asMember(record['binding'], BINDINGS, `${path}.binding`),
+    bleed: asBoolean(record['bleed'], `${path}.bleed`),
   };
 }
 

@@ -13,7 +13,11 @@
  *  - Interior: odd page numbers are right-hand (recto) and their gutter is on
  *    the LEFT. Get this wrong and every guide is mirrored on half the book.
  *  - Interior bleed extends past the top, bottom and OUTSIDE edges only. The
- *    gutter edge is bound into the spine and is never trimmed.
+ *    gutter edge is bound into the spine and is never trimmed. A page set up
+ *    for bleed is physically LARGER than its trim size (D25): the origin is
+ *    the paper's top-left, the bleed guide is the paper edge, and the trim
+ *    guide is inset into it. Page size comes from `page-size.ts`, never from
+ *    arithmetic here.
  *  - Cover: coordinates are within the flat cover, bleed included, exactly as
  *    `CoverSpec` defines them. The spine fold and barcode keep-out exist only
  *    here — an interior page never shows them. Cover safe-area placement is
@@ -28,6 +32,7 @@ import type { BookSettings, Frame } from '../model';
 import { roundIn } from '../model';
 import { COVER_BLEED_IN, barcodeKeepOutIn, coverSpecFor } from './cover';
 import { BLEED_IN, OUTER_MARGIN_MIN_IN, kdpMarginsFor, safeAreaFor } from './margins';
+import { pageSizeIn, trimOffsetIn } from './page-size';
 import { TRIM_SIZE_IN } from './trims';
 
 /** The six guide kinds. Instrument markings with fixed meanings (ui-context §2). */
@@ -47,8 +52,6 @@ export type Guide = {
 
 export type GuideOptions = {
   readonly surface: GuideSurface;
-  /** The book-level bleed toggle (D9). Interior only; covers always bleed. */
-  readonly bleedOn: boolean;
 };
 
 /** Thrown when guides are requested for a page that cannot exist. */
@@ -98,7 +101,7 @@ export function guidesFor(
       `guidesFor: pageIndex ${pageIndex} is outside a book of ${pageCount} pages.`,
     );
   }
-  return interiorGuides(book, pageIndex, pageCount, options.bleedOn);
+  return interiorGuides(book, pageIndex, pageCount);
 }
 
 /* ------------------------------------------------------------- interior -- */
@@ -107,47 +110,53 @@ function interiorGuides(
   book: BookSettings,
   pageIndex: number,
   pageCount: number,
-  bleedOn: boolean,
 ): readonly Guide[] {
   const size = TRIM_SIZE_IN[book.trimId];
   const pageNumber = pageIndex + 1;
-  const margins = kdpMarginsFor(pageCount, { bleed: bleedOn });
-  const safe = safeAreaFor(book.trimId, book.paper, pageCount, pageNumber, { bleed: bleedOn });
+  const margins = kdpMarginsFor(pageCount, { bleed: book.bleed });
+  const safe = safeAreaFor(book.trimId, book.paper, pageCount, pageNumber, { bleed: book.bleed });
+
+  // The origin is the top-left of the PAPER, which with bleed on is the bleed
+  // edge (D25). Everything trim-relative is shifted in by that inset, so no
+  // guide is ever drawn outside the paper.
+  const paper = pageSizeIn(book, pageIndex);
+  const offset = trimOffsetIn(book, pageIndex);
 
   const guides: Guide[] = [];
 
-  if (bleedOn) {
-    // Bleed extends past the top, bottom and outside edges. The gutter edge
-    // is bound into the spine and is never trimmed, so it gets no bleed.
+  if (book.bleed) {
+    // The bleed guide IS the paper edge. Bleed extends past the top, bottom
+    // and outside edges only: the gutter edge is bound into the spine and is
+    // never trimmed, so it gets no bleed.
     guides.push({
       kind: 'bleed',
-      rectIn: {
-        xIn: safe.isRecto ? 0 : -BLEED_IN,
-        yIn: -BLEED_IN,
-        wIn: size.widthIn + BLEED_IN,
-        hIn: size.heightIn + BLEED_IN * 2,
-      },
+      rectIn: { xIn: 0, yIn: 0, wIn: paper.widthIn, hIn: paper.heightIn },
       label: `Bleed ${roundIn(BLEED_IN)} in`,
     });
   }
 
   guides.push({
     kind: 'trim',
-    rectIn: { xIn: 0, yIn: 0, wIn: size.widthIn, hIn: size.heightIn },
+    rectIn: { xIn: offset.xIn, yIn: offset.yIn, wIn: size.widthIn, hIn: size.heightIn },
     label: `Trim ${roundIn(size.widthIn)} × ${roundIn(size.heightIn)} in`,
   });
 
   guides.push({
     kind: 'safe',
-    rectIn: { xIn: safe.xIn, yIn: safe.yIn, wIn: safe.wIn, hIn: safe.hIn },
+    rectIn: {
+      xIn: offset.xIn + safe.xIn,
+      yIn: offset.yIn + safe.yIn,
+      wIn: safe.wIn,
+      hIn: safe.hIn,
+    },
     label: 'Safe area',
   });
 
   guides.push({
     kind: 'gutter',
     rectIn: {
-      xIn: safe.isRecto ? 0 : size.widthIn - margins.gutterIn,
-      yIn: 0,
+      xIn: offset.xIn + (safe.isRecto ? 0 : size.widthIn - margins.gutterIn),
+      yIn: offset.yIn,
       wIn: margins.gutterIn,
       hIn: size.heightIn,
     },

@@ -34,6 +34,21 @@
   --paper: #ffffff;
   --paper-edge: rgba(0, 0, 0, 0.45);
 
+  /* Layer-kind identity colours (D18). Each element family keeps its own
+     colour so a divider is recognisable as a divider at a glance. Ported from
+     the legacy .lk-* rules; the five new families continue the same palette. */
+  --lk-puzzle: #3b82f6;
+  --lk-solution: #10b981;
+  --lk-template: #8b5cf6;
+  --lk-text: #f59e0b;
+  --lk-image: #ec4899;
+  --lk-shape: #64748b;
+  --lk-divider: #0ea5e9;
+  --lk-border: #14b8a6;
+  --lk-pattern: #a855f7;
+  --lk-sticker: #f43f5e;
+  --lk-icon: #eab308;
+
   /* Print guides — instrument markings, fixed meanings, never themed */
   --guide-bleed: #dc2626;
   --guide-trim: #111827;

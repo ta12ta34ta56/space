@@ -29,7 +29,6 @@ export type GuideOverlayProps = {
   readonly pageIndex: number;
   readonly pageCount: number;
   readonly surface: GuideSurface;
-  readonly bleedOn: boolean;
   readonly visibleGuides: Readonly<Record<GuideKind, boolean>>;
   /** Pixels per inch at the current zoom — the one conversion input. */
   readonly pxPerIn: number;
@@ -40,11 +39,10 @@ export function GuideOverlay({
   pageIndex,
   pageCount,
   surface,
-  bleedOn,
   visibleGuides,
   pxPerIn,
 }: GuideOverlayProps) {
-  const guides = guidesFor(book, pageIndex, pageCount, { surface, bleedOn });
+  const guides = guidesFor(book, pageIndex, pageCount, { surface });
   const shown = guides.filter((guide) => visibleGuides[guide.kind]);
 
   return (

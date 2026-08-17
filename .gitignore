@@ -15,6 +15,7 @@ dist-ssr
 
 # Bundles produced by the esbuild test harness
 **/*.built.mjs
+.test-build
 
 # Editor directories and files
 .vscode/*

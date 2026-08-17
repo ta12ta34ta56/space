@@ -24,6 +24,7 @@ function initialDocument(): Document {
     trimId: '6x9',
     paper: 'bw-white',
     binding: 'paperback',
+    bleed: false,
     pageCount: 24,
     now: Date.now,
     id: () => nanoid(),

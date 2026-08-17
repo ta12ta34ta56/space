@@ -6,7 +6,8 @@
  * enforced here, not by hope: every schema change ships a migration step and
  * a test in the same commit. The chain is walked one step at a time —
  * `v1 -> v2`, `v2 -> v3`, and so on — never a switch that handles every
- * version at once.
+ * version at once. The steps live here: `v1 -> v2` (no-op) and `v2 -> v3`
+ * (adds `book.bleed`).
  *
  * The chain started life inside `document.ts` (Unit 01) and was empty at
  * version 1. Unit 04 moved it here and added the first real step: a
@@ -41,8 +42,31 @@ const v1ToV2: MigrationStep = {
   up: (raw) => ({ ...raw, schemaVersion: 2 }),
 };
 
+/**
+ * v2 -> v3: `book.bleed` moves into the Document (Unit 07b, D25). Bleed was
+ * ephemeral view state until now, so every existing book was saved without
+ * it; they all default to `bleed: false`, which is what they were being
+ * exported as. This is the first step that does real work — the no-op
+ * v1 -> v2 above was the rehearsal for it.
+ */
+const v2ToV3: MigrationStep = {
+  from: 2,
+  to: 3,
+  up: (raw) => {
+    const book = raw['book'];
+    const isRecord = typeof book === 'object' && book !== null && !Array.isArray(book);
+    return {
+      ...raw,
+      schemaVersion: 3,
+      // A book that is not an object is left alone: `parseDocument` refuses it
+      // afterwards with a message naming the field, which beats guessing here.
+      book: isRecord ? { ...(book as Record<string, unknown>), bleed: false } : book,
+    };
+  },
+};
+
 /** Walked in order. Appending a version step is mechanical. */
-export const MIGRATIONS: readonly MigrationStep[] = [v1ToV2];
+export const MIGRATIONS: readonly MigrationStep[] = [v1ToV2, v2ToV3];
 
 /**
  * Validates and upgrades unknown input into a current-version Document.
