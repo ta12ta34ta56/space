@@ -3,13 +3,14 @@
 > Update this file after every meaningful implementation change.
 > It is how the next session recovers full context in one prompt.
 
-**Last updated:** 17 August 2026 — Unit 01 complete
+**Last updated:** 17 August 2026 — Unit 02 complete
 
 ---
 
 ## Current Phase
 
-**Phase 1 — Foundation.** Unit 01 is complete; implementation of the v2 build has begun.
+**Phase 1 — Foundation.** Units 01 and 02 are complete. The Document exists, and it is now
+changeable in exactly one way: dispatch a Command.
 
 The previous build now lives in `legacy/novelka/` and is the **reference implementation** —
 the source of ported logic. It is not the thing being extended, it is not linted, and it
@@ -19,14 +20,110 @@ is not built.
 
 ## Current Goal
 
-**Unit 02 — Commands and the document store.** `apply(doc, cmd)` pure, the command union,
-undo/redo, `state/doc-store.ts` as the only writer. The spec for it
-(`context/specs/02-*.md`) has not been written yet — Unit 01's spec was written ahead of
-implementation and Unit 02's should be too. See the open question below.
+**Unit 03 — KDP print truth.** `print/trims.ts` (six trims, one paper vocabulary),
+`print/margins.ts` (**ported**, gutter bands, recto/verso safe area), `print/cover.ts`
+(**rebuilt** against a reference table — D8). Its spec has not been written yet; see the
+open question below.
 
 ---
 
 ## Completed
+
+### Unit 02 — commands and the document store *(17 August 2026)*
+
+Built against `context/specs/02-commands-and-store.md`. Nothing beyond that spec was
+implemented: no `ui-store`, no storage, no rendering, no KDP math, no generator commands.
+
+**`src/model/commands.ts`** — the `Command` union with exactly the 15 members the spec
+lists (5 page, 4 element, 4 book, 2 cover) and `apply(doc, cmd): Document`.
+
+- **Pure.** No `Date.now`, no `Math.random`, no `nanoid`, no `console`, no `await`. New ids
+  and timestamps arrive inside the command, which is why `page/duplicate` carries `newId`.
+- **Structurally sharing.** `withPage` and `withElement` copy one array slot, so every page
+  and element that did not change is the *same object reference* in the result. Unit 05's
+  renderer will use that reference equality to decide what to repaint, so it is behaviour,
+  not an optimisation. Book-only commands return the same `pages` array; page-only commands
+  return the same `book` and `meta`.
+- **Exhaustive.** The switch ends in `const unhandled: never = cmd`. Verified by deleting
+  the `cover/clear` case and watching `tsc` fail with
+  `Type '{ readonly t: "cover/clear"; }' is not assignable to type 'never'`, then restoring
+  it. Appending the Unit 12 generator commands will fail the build until they are handled,
+  which is the point.
+- **Total or loud.** `requirePage` / `requireElement` / `requireIndex` throw `CommandError`
+  naming the command and the missing id. Multi-id commands (`page/delete`,
+  `element/delete`) check **every** id before removing any, so a partly unknown command
+  applies none of itself.
+- **`meta.updatedAt` is not touched by `apply`.** Asserted in the tests. The store stamps it.
+
+`ElementPatch` carries only mutable fields: `frame`, `z`, `hidden`, `locked` plus the
+payload fields (`text`/`style`, `shape`, `assetId`, `puzzle`). `id`, `type` and `kind` are
+absent by construction, so patching identity is a compile error (D18).
+`assertPatchKeys` enforces the same rule at runtime, per element type, because a patch can
+arrive from a loaded file as well as from typed code: `text` on a shape is refused, not
+silently dropped.
+
+**`src/model/commands.type-test.ts`** — the compile-time half of the D18 test. Four
+`@ts-expect-error` lines assert that patching `id`, `type` or `kind`, and dispatching a
+`generate/pages` command, do not compile. `tsc -b` passing *is* the assertion: if the types
+ever loosen, the unused directives fail the build. This is the one place
+`@ts-expect-error` is permitted (code-standards.md, TypeScript).
+
+**`src/state/doc-store.ts`** — Zustand 5, added in this unit and nothing else.
+`createDocStore(initial)` returns a store of `{ doc, past, future, dispatch, undo, redo,
+jumpTo }` and nothing more: no selection, no zoom, no panel, no theme. That absence is
+asserted by a test on the store's key list.
+
+- `dispatch(cmd, now)` runs `apply` then `assertValidDocument` **before** anything is
+  stored, so a rejected command leaves `doc`, `past` and `future` untouched by reference
+  and the error propagates. Tested for both rejection paths: a command `apply` refuses
+  (unknown page) and a well-formed command whose *result* is illegal (duplicate element
+  id).
+- On success it pushes the *previous* Document onto `past` with a plain-language label,
+  clears `future`, and stamps `meta.updatedAt` from the injected `now`. The store never
+  reads the clock itself; a non-finite `now` throws.
+- `past` is capped at 50; the oldest entries drop.
+- `jumpTo(i)` moves entries between the stacks rather than replaying commands, and a test
+  asserts it lands on the same `doc`, `past` and `future` as the equivalent run of `undo`,
+  for every reachable target.
+- **No timers, no coalescing, no debouncing.** One dispatch is one undo entry. A gesture
+  previews from local component state and commits once when it ends — a binding rule on
+  every later unit that adds a drag or a resize.
+
+**Tests.** `src/model/commands.test.mjs` (16 blocks) and `src/state/doc-store.test.mjs`
+(12 blocks), both run by plain Node over an esbuild bundle, as `npm run test:commands` and
+`npm run test:doc-store`. Every one of the 15 commands has a test asserting the resulting
+Document. Purity is proved by deep-freezing the input, replacing `Date.now` and
+`Math.random` with throwing stubs, running all 15 commands, and byte-comparing the input
+afterwards. Structural sharing is asserted by reference (`result.pages[0] === doc.pages[0]`,
+`result.pages[3] !== doc.pages[3]`), at element level too. The command sequence result
+still round-trips through `JSON.parse(JSON.stringify(...))` and still reloads through
+`migrate`.
+
+**Verification, all run and all green:** `npm run check` (lint 0 errors 0 warnings ·
+`tsc -b` clean · 4/4 suites · build passes) · `npm run dev` serves the page with no console
+errors · `grep -rn "fabric" src/` empty · `grep -rn "state/" src/model src/print
+src/generators src/templates` matches only a prose comment · `apply` contains no `Date.now`,
+`Math.random`, `nanoid`, `console` or `await` · no `any`, no non-null `!` · the only
+`@ts-expect-error` lines are the four in `commands.type-test.ts` that exist to assert type
+errors · `dispatch` is the only place a new `doc` is stored.
+
+**Invariants checked explicitly** (`architecture.md` §10). Applicable and held: 1 (the
+Document is still plain data; nothing renderer-shaped enters it), 2 (commands are the only
+writer; nothing flows back), 3 (`apply` is pure, proved by the frozen-input test), 4 (no
+geometry is created here; frames pass through untouched), 6 (`cover/set` and `cover/clear`
+write `document.cover`; no command can put a cover in `pages[]`, and no interior command
+reads or writes the cover), 8 (`kind` is carried in on the command, never inferred),
+14 (zero `any`, zero non-null `!`; `@ts-expect-error` only in the file whose purpose is
+asserting type errors), 15 (`model/` still imports nothing outside itself; `state/` imports
+only `model/` and `zustand`), 16 (no backend). Not yet applicable, nothing in this unit
+contradicts them: 5, 7, 9, 10, 11, 12, 13, 17.
+
+One judgement call recorded rather than left silent: `page/duplicate` derives the copied
+elements' ids as `` `${newId}-${element.id}` ``. Ids must be unique across the whole
+Document, the copy's elements need new ones, and `apply` may not call `nanoid`. Deriving
+them from the caller-supplied `newId` keeps `apply` pure and deterministic. The spec
+specifies `newId` for the page only and is silent on its elements, so if the owner wants
+generated ids for them instead, the command grows an `elementIds` field.
 
 ### Unit 01 — project skeleton and the Document model *(17 August 2026)*
 
@@ -140,18 +237,20 @@ the new standards.
 
 ## In Progress
 
-- Nothing. Unit 01 is finished and verified; Unit 02 has not started.
+- Nothing. Unit 02 is finished and verified; Unit 03 has not started.
 
 ---
 
 ## Next Up
 
-**Unit 02 — Commands and the document store.** `apply(doc, cmd)` pure with no I/O, the
-command union for pages and elements, undo/redo as a stack, `state/doc-store.ts` as the
-only writer. Done when every command has a test asserting the resulting Document, undo/redo
-round-trips exactly, and `apply` is provably pure.
+**Unit 03 — KDP print truth.** `print/trims.ts` (the six trims and the page-count limits
+per paper, one paper vocabulary), `print/margins.ts` (**ported** — gutter bands, recto and
+verso safe area), `print/cover.ts` (**rebuilt** against a reference table of known-good KDP
+values, D8). Done when the cover reference table passes, and spine, cover size and safe
+area are correct for all six trims at every gutter band.
 
-Write `context/specs/02-*.md` first, the way Unit 01 was specified before it was built.
+Write `context/specs/03-*.md` first, the way Units 01 and 02 were specified before they
+were built.
 
 The full ordered plan is `context/specs/00-build-plan.md` — 23 units in five phases.
 Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable book.
@@ -160,16 +259,25 @@ Checkpoints: Unit 05 proves the architecture, Unit 11 is the first shippable boo
 
 ## Open Questions
 
-1. **Unit 02 has no spec file yet.** Only `00-build-plan.md` and `01-skeleton-and-model.md`
-   exist under `context/specs/`. The build plan's four-line summary of Unit 02 is not
-   enough to implement against without inventing product behaviour — in particular the
-   command union's exact membership, whether undo granularity is per-command or coalesced,
-   and where the store is allowed to be read from. Owner to write the spec, or to say the
-   agent should draft it for review first.
+1. **Unit 03 has no spec file yet.** `context/specs/` holds `00-build-plan.md`,
+   `01-skeleton-and-model.md` and `02-commands-and-store.md`. The build plan's summary of
+   Unit 03 is not enough to implement against on its own — in particular which legacy files
+   are ported verbatim versus rebuilt, and where the cover reference table's values come
+   from and how they are cited. Owner to write the spec, or to say the agent should draft
+   it for review first.
 2. **`PuzzleData` / `PuzzleStyle` are `Record<string, never>` until Unit 12.** The parser
    therefore *rejects* any puzzle carrying real data, with a message pointing at Unit 12.
    This is correct for now, but it means no document written between here and Unit 12 can
    contain a real puzzle. Flagging it so it is a known constraint and not a surprise.
+3. **Duplicated element ids are derived, not generated** (Unit 02). `page/duplicate`
+   carries `newId` for the page; its elements get `` `${newId}-${oldId}` `` because ids must
+   be unique document-wide and `apply` may not call `nanoid`. Deterministic and pure, but
+   it is a shape the spec did not state. If the owner wants generated ids there instead,
+   the command grows an `elementIds` field. Low cost either way.
+4. **Nothing reads the store yet.** `createDocStore` is a factory, not an app-wide
+   singleton, because no UI exists to consume one and Unit 04 (storage) will decide how a
+   loaded project becomes the live document. Whether the app ends up with a module-level
+   store or a provider is a Unit 04 question, deliberately not answered here.
 
 Everything else was resolved on 17 August 2026 (D24). The owner decided History (keep),
 PDF import (cut) and fonts (keep); the remaining calls were delegated to the agent and are

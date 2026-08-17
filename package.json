@@ -8,15 +8,18 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "oxlint --disable-nested-config --deny-warnings",
-    "test": "npm run test:units && npm run test:document",
+    "test": "npm run test:units && npm run test:document && npm run test:commands && npm run test:doc-store",
     "test:units": "esbuild src/model/units.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/units.built.mjs --log-level=error && node src/model/units.test.mjs",
     "test:document": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && node src/model/document.test.mjs",
+    "test:commands": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && node src/model/commands.test.mjs",
+    "test:doc-store": "esbuild src/model/index.ts --bundle --format=esm --platform=node --packages=external --outfile=src/model/model.built.mjs --log-level=error && esbuild src/state/doc-store.ts --bundle --format=esm --platform=node --packages=external --outfile=src/state/doc-store.built.mjs --log-level=error && node src/state/doc-store.test.mjs",
     "check": "npm run lint && tsc -b && npm run test && npm run build"
   },
   "dependencies": {
     "nanoid": "^5.1.16",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
