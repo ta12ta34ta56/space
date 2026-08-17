@@ -45,6 +45,9 @@ export type {
   TrimId,
 } from './types';
 
+export { CommandError, apply } from './commands';
+export type { Command, CommandName, ElementPatch } from './commands';
+
 export { PT_PER_IN, UnitError, inToPt, inToPx, ptToIn, pxToIn, roundIn } from './units';
 
 export {
