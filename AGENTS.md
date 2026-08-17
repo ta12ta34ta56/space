@@ -1,5 +1,3 @@
-## Application Building Context
-
 Read the following files in order before implementing
 or making any architectural decision:
 
